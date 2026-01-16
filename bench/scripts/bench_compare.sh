@@ -96,6 +96,8 @@ OLD_OUT="${RESULTS_DIR}/results_old.json"
 NEW_OUT="${RESULTS_DIR}/results_new.json"
 DELTA_OUT="${RESULTS_DIR}/delta.json"
 
+rm -f "${OLD_OUT}" "${NEW_OUT}" "${DELTA_OUT}"
+
 "${TEMPLATE}" "${OLD_IMAGE}" -- bench/run "${MODE}" --out "${OLD_OUT}" "${EXTRA_ARGS[@]}"
 "${TEMPLATE}" "${NEW_IMAGE}" -- bench/run "${MODE}" --out "${NEW_OUT}" "${EXTRA_ARGS[@]}"
 
