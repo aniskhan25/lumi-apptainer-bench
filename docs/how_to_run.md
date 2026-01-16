@@ -124,13 +124,13 @@ Notes:
 
 ## Prereqs
 
-- You are on Puhti and have a valid project (e.g., `project_2001234`).
+- You are on Puhti and have a valid project (e.g., `project_2014553`).
 - You have a CUDA-enabled container image (`.sif`).
 
 ## Set required environment
 
 ```bash
-export PROJECT_NAME=project_2001234
+export PROJECT_NAME=project_2014553
 export PARTITION=gpu   # use gputest for short test runs
 export ACCOUNT=${PROJECT_NAME}
 ```
