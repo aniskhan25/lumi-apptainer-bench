@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import argparse
-import json
 import os
-import subprocess
 import sys
+import json
+import argparse
+import subprocess
+
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
@@ -11,7 +12,9 @@ from tests import allreduce, check_rocm, gemm_torch, kernel_mix
 
 
 def _utc_now():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
 
 
 def _env(name, default=""):
@@ -61,8 +64,12 @@ def _base_payload():
             "nodes": _int_env("BENCH_NODES", _int_env("SLURM_NNODES", 0)),
             "ntasks": _int_env("SLURM_NTASKS", 0),
             "ntasks_per_node": _int_env("BENCH_NTASKS_PER_NODE", 0),
-            "gpus_per_node": _int_env("BENCH_GPUS_PER_NODE", _int_env("SLURM_GPUS_PER_NODE", 0)),
-            "cpus_per_task": _int_env("BENCH_CPUS_PER_TASK", _int_env("SLURM_CPUS_PER_TASK", 0)),
+            "gpus_per_node": _int_env(
+                "BENCH_GPUS_PER_NODE", _int_env("SLURM_GPUS_PER_NODE", 0)
+            ),
+            "cpus_per_task": _int_env(
+                "BENCH_CPUS_PER_TASK", _int_env("SLURM_CPUS_PER_TASK", 0)
+            ),
             "distribution": _env("BENCH_DIST", ""),
             "cpu_bind": _env("BENCH_CPU_BIND", ""),
             "mpi_mode": _env("BENCH_MPI_MODE", ""),
@@ -160,7 +167,14 @@ def _parse_sizes(value):
 
 def cmd_multi(args):
     payload = _base_payload()
-    sizes = _parse_sizes(args.message_sizes) or [1024, 4096, 16384, 65536, 262144, 1048576]
+    sizes = _parse_sizes(args.message_sizes) or [
+        1024,
+        4096,
+        16384,
+        65536,
+        262144,
+        1048576,
+    ]
     allreduce_result = allreduce.run_allreduce(sizes, iters=args.iters)
     if "error" in allreduce_result:
         _add_warning(payload, f"multi: {allreduce_result['error']}")
@@ -193,7 +207,9 @@ def build_parser():
 
     single = subparsers.add_parser("single", help="single benchmark")
     single.add_argument("--out", required=True, help="Output JSON path")
-    single.add_argument("--gemm-size", type=int, default=int(_env("BENCH_GEMM_SIZE", "4096")))
+    single.add_argument(
+        "--gemm-size", type=int, default=int(_env("BENCH_GEMM_SIZE", "4096"))
+    )
     single.add_argument("--dtype", default=_env("BENCH_GEMM_DTYPE", ""))
     single.add_argument(
         "--kernel-mix-size",

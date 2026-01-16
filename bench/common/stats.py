@@ -1,5 +1,5 @@
-import statistics
 import time
+import statistics
 
 
 def _percentile(values, pct):

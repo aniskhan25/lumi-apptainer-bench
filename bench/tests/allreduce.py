@@ -1,7 +1,7 @@
 import os
+import time
 import shutil
 import subprocess
-import time
 
 
 def _env_int(name, default):
