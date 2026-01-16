@@ -117,3 +117,51 @@ Notes:
 - For GPU mapping overrides, set `CPU_BIND` and `USE_ROCR_VISIBLE_DEVICES` explicitly.
 - For kernel-mix stability control, use `--no-softmax-fp32` or set `BENCH_KERNEL_MIX_SOFTMAX_FP32=0`.
 - For distributed runs, `MASTER_ADDR` and `MASTER_PORT` are derived from Slurm if not set.
+
+---
+
+# How to run on Puhti (CUDA)
+
+## Prereqs
+
+- You are on Puhti and have a valid project (e.g., `project_2001234`).
+- You have a CUDA-enabled container image (`.sif`).
+
+## Set required environment
+
+```bash
+export PROJECT_NAME=project_2001234
+export PARTITION=gpu   # use gputest for short test runs
+export ACCOUNT=${PROJECT_NAME}
+```
+
+## Single-node (4 GPUs, 4 ranks)
+
+```bash
+./templates/puhti_single_4g_4r.sh /path/to/container.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/puhti_single.json
+```
+
+## Multi-node (2 nodes, 4 ranks/node)
+
+```bash
+export NODES=2
+./templates/puhti_multi_ng_4rpn.sh /path/to/container.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/puhti_multi.json
+```
+
+## All-reduce sweep
+
+```bash
+export NODES=2
+./templates/puhti_allreduce_sweep.sh /path/to/container.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/puhti_allreduce.json
+```
+
+## Filesystem checks
+
+```bash
+./templates/puhti_filesystem.sh /path/to/container.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/puhti_check.json
+```
+
+Notes:
+- Puhti GPU nodes have 4 V100 GPUs; default templates use 4 ranks/node.
+- Fair use guidance is no more than 10 CPU cores per GPU.
+- Templates use `apptainer exec --nv` and `CUDA_VISIBLE_DEVICES` by default.

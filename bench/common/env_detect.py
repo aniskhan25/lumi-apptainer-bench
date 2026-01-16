@@ -27,9 +27,10 @@ def gpu_count_from_env():
                 return int(str(value).split("(")[0].split(",")[0])
             except ValueError:
                 continue
-    rocr_visible = os.environ.get("ROCR_VISIBLE_DEVICES", "")
-    if rocr_visible:
-        return len([v for v in rocr_visible.split(",") if v.strip() != ""])
+    for key in ("ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES"):
+        value = os.environ.get(key, "")
+        if value:
+            return len([v for v in value.split(",") if v.strip() != ""])
     return 0
 
 
@@ -47,9 +48,14 @@ def run_cmd(cmd):
         return 127, ""
 
 
-def rocm_info():
+def gpu_info():
     if shutil.which("rocminfo"):
-        return run_cmd(["rocminfo"])
+        code, out = run_cmd(["rocminfo"])
+        return "rocminfo", code, out
     if shutil.which("rocm-smi"):
-        return run_cmd(["rocm-smi", "-i"])
-    return 127, ""
+        code, out = run_cmd(["rocm-smi", "-i"])
+        return "rocm-smi", code, out
+    if shutil.which("nvidia-smi"):
+        code, out = run_cmd(["nvidia-smi", "-L"])
+        return "nvidia-smi", code, out
+    return "", 127, ""

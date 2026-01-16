@@ -8,13 +8,14 @@ def run_check(cache_root):
     details = {}
     status = "pass"
 
-    code, out = env_detect.rocm_info()
-    details["rocm_info_exit_code"] = code
+    tool, code, out = env_detect.gpu_info()
+    details["gpu_info_tool"] = tool
+    details["gpu_info_exit_code"] = code
     if out:
-        details["rocm_info_snippet"] = out.splitlines()[:20]
+        details["gpu_info_snippet"] = out.splitlines()[:20]
     if code != 0:
         status = "fail"
-        details["rocm_info_error"] = "rocminfo/rocm-smi not available"
+        details["gpu_info_error"] = "rocminfo/rocm-smi/nvidia-smi not available"
 
     if cache_root:
         try:
