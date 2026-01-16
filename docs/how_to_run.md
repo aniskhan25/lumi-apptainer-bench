@@ -172,3 +172,4 @@ Notes:
 - CSC-provided PyTorch containers live under `/appl/soft/ai/singularity/images/`.
 - Outputs default to `/scratch/${PROJECT_NAME}/${USER}/bench_results` unless overridden.
 - Cache defaults to `/scratch/${PROJECT_NAME}/${USER}/bench_cache` unless overridden.
+- `gputest` default wall time is 5 minutes; templates set `TIME_LIMIT=00:15:00` by default. Override with `TIME_LIMIT`.

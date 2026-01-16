@@ -49,6 +49,11 @@ CPUS_PER_TASK="${CPUS_PER_TASK:-1}"
 DIST="${DIST:-block}"
 CPU_BIND="${CPU_BIND:-cores}"
 
+TIME_LIMIT="${TIME_LIMIT:-}"
+if [[ -z "${TIME_LIMIT}" && "${PARTITION}" == "gputest" ]]; then
+  TIME_LIMIT="00:15:00"
+fi
+
 RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
 RESULTS_DIR="${RESULTS_ROOT}/${RUN_ID}"
 RESULTS_JSON="${RESULTS_DIR}/results.json"
@@ -105,6 +110,10 @@ SRUN_BASE=(
   --cpu-bind="${CPU_BIND}"
   "${SRUN_MPI_FLAG[@]}"
 )
+
+if [[ -n "${TIME_LIMIT}" ]]; then
+  SRUN_BASE+=(--time="${TIME_LIMIT}")
+fi
 
 "${SRUN_BASE[@]}" \
   apptainer exec "${APPTAINER_GPU_FLAG}" "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \

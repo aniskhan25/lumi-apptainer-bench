@@ -52,6 +52,11 @@ DIST="${DIST:-block}"
 CPU_BIND="${CPU_BIND:-cores}"
 GPU_BIND="${GPU_BIND:-closest}"
 
+TIME_LIMIT="${TIME_LIMIT:-}"
+if [[ -z "${TIME_LIMIT}" && "${PARTITION}" == "gputest" ]]; then
+  TIME_LIMIT="00:15:00"
+fi
+
 USE_GPU_VISIBLE_DEVICES="${USE_GPU_VISIBLE_DEVICES:-1}"
 GPU_WRAPPER=()
 if [[ "${USE_GPU_VISIBLE_DEVICES}" == "1" ]]; then
@@ -118,6 +123,10 @@ SRUN_BASE=(
   --gpu-bind="${GPU_BIND}"
   "${SRUN_MPI_FLAG[@]}"
 )
+
+if [[ -n "${TIME_LIMIT}" ]]; then
+  SRUN_BASE+=(--time="${TIME_LIMIT}")
+fi
 
 "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \
   apptainer exec "${APPTAINER_GPU_FLAG}" "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
