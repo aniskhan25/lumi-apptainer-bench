@@ -50,6 +50,14 @@ def _run_id():
     return _env("RUN_ID", _utc_now().replace(":", "").replace("-", ""))
 
 
+def _rank():
+    return _int_env("RANK", _int_env("SLURM_PROCID", 0))
+
+
+def _is_rank0():
+    return _rank() == 0
+
+
 def _base_payload():
     return {
         "schema_version": json_schema.SCHEMA_VERSION,
@@ -102,6 +110,8 @@ def _add_warning(payload, message):
 
 
 def cmd_check(args):
+    if not _is_rank0():
+        return 0
     payload = _base_payload()
     cache_root = _env("BENCH_CACHE_ROOT", "")
     check = check_rocm.run_check(cache_root)
@@ -113,6 +123,8 @@ def cmd_check(args):
 
 
 def cmd_single(args):
+    if not _is_rank0():
+        return 0
     payload = _base_payload()
     gemm = gemm_torch.run_gemm(
         size=args.gemm_size,
@@ -188,7 +200,8 @@ def cmd_multi(args):
         allreduce_payload = allreduce_result
 
     payload["tests"] = {"multi": {"allreduce": allreduce_payload}}
-    _write_json(args.out, payload)
+    if _is_rank0():
+        _write_json(args.out, payload)
     return 0
 
 

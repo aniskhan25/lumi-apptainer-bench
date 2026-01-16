@@ -52,6 +52,7 @@ export BENCH_TEMPLATE=./templates/single_8g_8r.sh
 - `tests.check.status` is `pass` when ROCm tools are available and cache is writable.
 - `tests.single.gemm.tflops` is non-null when PyTorch/ROCm are available.
 - `tests.multi.allreduce.bandwidth_gbps` is populated for multi-node runs.
+- Output JSON is written by rank 0 only (other ranks exit without writing).
 
 ### Example results snippet
 
