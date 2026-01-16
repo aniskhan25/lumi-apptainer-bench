@@ -118,6 +118,7 @@ Notes:
 - For kernel-mix stability control, use `--no-softmax-fp32` or set `BENCH_KERNEL_MIX_SOFTMAX_FP32=0`.
 - For distributed runs, `MASTER_ADDR` and `MASTER_PORT` are derived from Slurm if not set.
 - Outputs default to `/scratch/${PROJECT_NAME}/${USER}/bench_results` unless overridden.
+- Cache defaults to `/scratch/${PROJECT_NAME}/${USER}/bench_cache` unless overridden.
 
 ---
 
@@ -169,3 +170,4 @@ Notes:
 - GPU allocation uses `--gres=gpu:v100:<n>` (4 GPUs per node on Puhti).
 - CSC-provided PyTorch containers live under `/appl/soft/ai/singularity/images/`.
 - Outputs default to `/scratch/${PROJECT_NAME}/${USER}/bench_results` unless overridden.
+- Cache defaults to `/scratch/${PROJECT_NAME}/${USER}/bench_cache` unless overridden.
