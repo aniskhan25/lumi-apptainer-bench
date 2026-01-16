@@ -165,3 +165,4 @@ Notes:
 - Puhti GPU nodes have 4 V100 GPUs; default templates use 4 ranks/node.
 - Fair use guidance is no more than 10 CPU cores per GPU.
 - Templates use `apptainer exec --nv` and `CUDA_VISIBLE_DEVICES` by default.
+- GPU allocation uses `--gres=gpu:v100:<n>` (4 GPUs per node on Puhti).
