@@ -138,27 +138,27 @@ export ACCOUNT=${PROJECT_NAME}
 ## Single-node (4 GPUs, 4 ranks)
 
 ```bash
-./templates/puhti_single_4g_4r.sh /path/to/container.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/puhti_single.json
+./templates/puhti_single_4g_4r.sh /scratch/${PROJECT_NAME}/containers/my.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/puhti_single.json
 ```
 
 ## Multi-node (2 nodes, 4 ranks/node)
 
 ```bash
 export NODES=2
-./templates/puhti_multi_ng_4rpn.sh /path/to/container.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/puhti_multi.json
+./templates/puhti_multi_ng_4rpn.sh /scratch/${PROJECT_NAME}/containers/my.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/puhti_multi.json
 ```
 
 ## All-reduce sweep
 
 ```bash
 export NODES=2
-./templates/puhti_allreduce_sweep.sh /path/to/container.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/puhti_allreduce.json
+./templates/puhti_allreduce_sweep.sh /scratch/${PROJECT_NAME}/containers/my.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/puhti_allreduce.json
 ```
 
 ## Filesystem checks
 
 ```bash
-./templates/puhti_filesystem.sh /path/to/container.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/puhti_check.json
+./templates/puhti_filesystem.sh /scratch/${PROJECT_NAME}/containers/my.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/puhti_check.json
 ```
 
 Notes:
@@ -166,3 +166,4 @@ Notes:
 - Fair use guidance is no more than 10 CPU cores per GPU.
 - Templates use `apptainer exec --nv` and `CUDA_VISIBLE_DEVICES` by default.
 - GPU allocation uses `--gres=gpu:v100:<n>` (4 GPUs per node on Puhti).
+- Use a full path to the `.sif` file (e.g. on `/scratch` or `/projappl`), not a placeholder path.

@@ -9,6 +9,12 @@ CONTAINER_IMAGE="${1:?container image path required}"
 shift
 
 PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_2001234)}"
+
+if [[ ! -f "${CONTAINER_IMAGE}" ]]; then
+  echo "Container image not found: ${CONTAINER_IMAGE}" >&2
+  echo "Tip: use a full path on /scratch or /projappl (e.g. /scratch/${PROJECT_NAME}/containers/my.sif)." >&2
+  exit 1
+fi
 PARTITION="${PARTITION:-gpu}"
 ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
 
