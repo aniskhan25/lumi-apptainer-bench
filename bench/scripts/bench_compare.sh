@@ -75,9 +75,9 @@ fi
 if [[ -z "${RESULTS_DIR}" ]]; then
   RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
   if [[ -n "${SCRATCH:-}" ]]; then
-    RESULTS_DIR="${SCRATCH}/bench_results/${RUN_ID}"
+    RESULTS_DIR="${SCRATCH}/bench_results/${USER}/${RUN_ID}"
   elif [[ -n "${PROJECT_NAME:-}" ]]; then
-    RESULTS_DIR="/scratch/${PROJECT_NAME}/bench_results/${RUN_ID}"
+    RESULTS_DIR="/scratch/${PROJECT_NAME}/bench_results/${USER}/${RUN_ID}"
   else
     RESULTS_DIR="/tmp/bench_results/${RUN_ID}"
   fi

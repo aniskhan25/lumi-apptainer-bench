@@ -16,34 +16,34 @@ export ACCOUNT=${PROJECT_NAME}
 ## Single-node (8 GPUs, 8 ranks)
 
 ```bash
-./templates/single_8g_8r.sh /path/to/container.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/manual_single.json
+./templates/single_8g_8r.sh /path/to/container.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/${USER}/manual_single.json
 ```
 
 ## Multi-node (2 nodes, 8 ranks/node)
 
 ```bash
 export NODES=2
-./templates/multi_ng_8rpn.sh /path/to/container.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/manual_multi.json
+./templates/multi_ng_8rpn.sh /path/to/container.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/${USER}/manual_multi.json
 ```
 
 ## All-reduce sweep
 
 ```bash
 export NODES=2
-./templates/allreduce_sweep.sh /path/to/container.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/manual_allreduce.json
+./templates/allreduce_sweep.sh /path/to/container.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/${USER}/manual_allreduce.json
 ```
 
 ## Filesystem checks
 
 ```bash
-./templates/filesystem.sh /path/to/container.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/manual_check.json
+./templates/filesystem.sh /path/to/container.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/${USER}/manual_check.json
 ```
 
 ## A/B compare (old vs new)
 
 ```bash
 export BENCH_TEMPLATE=./templates/single_8g_8r.sh
-./bench/compare.sh --old /path/to/old.sif --new /path/to/new.sif --mode single --results-dir /scratch/${PROJECT_NAME}/bench_results/compare_run
+./bench/compare.sh --old /path/to/old.sif --new /path/to/new.sif --mode single --results-dir /scratch/${PROJECT_NAME}/bench_results/${USER}/compare_run
 ```
 
 ## Quick sanity check (what to expect)
@@ -117,6 +117,7 @@ Notes:
 - For GPU mapping overrides, set `CPU_BIND` and `USE_ROCR_VISIBLE_DEVICES` explicitly.
 - For kernel-mix stability control, use `--no-softmax-fp32` or set `BENCH_KERNEL_MIX_SOFTMAX_FP32=0`.
 - For distributed runs, `MASTER_ADDR` and `MASTER_PORT` are derived from Slurm if not set.
+- Outputs default to `/scratch/${PROJECT_NAME}/bench_results/${USER}` unless overridden.
 
 ---
 
@@ -138,27 +139,27 @@ export ACCOUNT=${PROJECT_NAME}
 ## Single-node (4 GPUs, 4 ranks)
 
 ```bash
-./templates/puhti_single_4g_4r.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/puhti_single.json
+./templates/puhti_single_4g_4r.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run single --out /scratch/${PROJECT_NAME}/bench_results/${USER}/puhti_single.json
 ```
 
 ## Multi-node (2 nodes, 4 ranks/node)
 
 ```bash
 export NODES=2
-./templates/puhti_multi_ng_4rpn.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/puhti_multi.json
+./templates/puhti_multi_ng_4rpn.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run multi --out /scratch/${PROJECT_NAME}/bench_results/${USER}/puhti_multi.json
 ```
 
 ## All-reduce sweep
 
 ```bash
 export NODES=2
-./templates/puhti_allreduce_sweep.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/puhti_allreduce.json
+./templates/puhti_allreduce_sweep.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run multi --allreduce --out /scratch/${PROJECT_NAME}/bench_results/${USER}/puhti_allreduce.json
 ```
 
 ## Filesystem checks
 
 ```bash
-./templates/puhti_filesystem.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/puhti_check.json
+./templates/puhti_filesystem.sh /appl/soft/ai/singularity/images/pytorch_2.7.1_csc.sif -- bench/run check --out /scratch/${PROJECT_NAME}/bench_results/${USER}/puhti_check.json
 ```
 
 Notes:
@@ -167,3 +168,4 @@ Notes:
 - Templates use `apptainer exec --nv` and `CUDA_VISIBLE_DEVICES` by default.
 - GPU allocation uses `--gres=gpu:v100:<n>` (4 GPUs per node on Puhti).
 - CSC-provided PyTorch containers live under `/appl/soft/ai/singularity/images/`.
+- Outputs default to `/scratch/${PROJECT_NAME}/bench_results/${USER}` unless overridden.
