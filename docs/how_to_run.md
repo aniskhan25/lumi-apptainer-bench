@@ -120,6 +120,7 @@ Notes:
 - For distributed runs, `MASTER_ADDR` and `MASTER_PORT` are derived from Slurm if not set.
 - Outputs default to `/scratch/${PROJECT_NAME}/${USER}/bench_results` unless overridden.
 - Cache defaults to `/scratch/${PROJECT_NAME}/${USER}/bench_cache` unless overridden.
+- LUMI defaults `CPUS_PER_TASK=1` with `map_cpu` binding; override `CPU_BIND` if you need more CPUs per task.
 
 ---
 
