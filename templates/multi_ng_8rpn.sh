@@ -49,6 +49,8 @@ CPUS_PER_TASK="${CPUS_PER_TASK:-1}" # default to 1 CPU per task
 DIST="${DIST:-block}"
 CPU_BIND="${CPU_BIND:-cores}"
 
+TIME_LIMIT="${TIME_LIMIT:-01:00:00}"
+
 USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-1}"
 GPU_WRAPPER=()
 if [[ "${USE_ROCR_VISIBLE_DEVICES}" == "1" ]]; then
@@ -97,6 +99,7 @@ fi
   echo "cpus_per_task=${CPUS_PER_TASK}"
   echo "distribution=${DIST}"
   echo "cpu_bind=${CPU_BIND}"
+  echo "time_limit=${TIME_LIMIT}"
   echo "bench_cmd=${BENCH_CMD[*]}"
   srun --version || true
 } | tee "${LOG_DIR}/run_env.txt"
@@ -112,6 +115,7 @@ SRUN_BASE=(
   --distribution="${DIST}"
   --cpu-bind="${CPU_BIND}"
   "${SRUN_MPI_FLAG[@]}"
+  --time="${TIME_LIMIT}"
 )
 
 "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \

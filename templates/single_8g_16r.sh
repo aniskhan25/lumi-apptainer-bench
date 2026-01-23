@@ -50,6 +50,9 @@ CPUS_PER_TASK="${CPUS_PER_TASK:-3}" # 56 cores / 16 ranks ~= 3
 DIST="${DIST:-block}"
 CPU_BIND="${CPU_BIND:-cores}"
 
+# 16-rank single node usually needs a bit more time.
+TIME_LIMIT="${TIME_LIMIT:-00:40:00}"
+
 # For 2 ranks per GPU, let the app select GPUs (do not set ROCR_VISIBLE_DEVICES).
 USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-0}"
 GPU_WRAPPER=()
@@ -99,6 +102,7 @@ fi
   echo "cpus_per_task=${CPUS_PER_TASK}"
   echo "distribution=${DIST}"
   echo "cpu_bind=${CPU_BIND}"
+  echo "time_limit=${TIME_LIMIT}"
   echo "bench_cmd=${BENCH_CMD[*]}"
   srun --version || true
 } | tee "${LOG_DIR}/run_env.txt"
@@ -114,6 +118,7 @@ SRUN_BASE=(
   --distribution="${DIST}"
   --cpu-bind="${CPU_BIND}"
   "${SRUN_MPI_FLAG[@]}"
+  --time="${TIME_LIMIT}"
 )
 
 "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \

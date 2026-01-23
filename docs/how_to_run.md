@@ -122,6 +122,7 @@ Notes:
 - Cache defaults to `/scratch/${PROJECT_NAME}/${USER}/bench_cache` unless overridden.
 - LUMI defaults `CPU_BIND=cores` with `CPUS_PER_TASK=1` for compatibility; override if you need specific binding.
 - Templates auto-detect `apptainer` or `singularity` if only one is available.
+- LUMI template time limits: filesystem 10m, single 30m, single_16r 40m, multi/allreduce 60m. Override with `TIME_LIMIT`.
 
 ---
 
