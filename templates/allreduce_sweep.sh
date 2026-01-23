@@ -45,14 +45,9 @@ fi
 NODES="${NODES:-2}"
 NTASKS_PER_NODE=8
 GPUS_PER_NODE=8
-CPUS_PER_TASK="${CPUS_PER_TASK:-1}" # map_cpu binding expects 1 CPU per task
+CPUS_PER_TASK="${CPUS_PER_TASK:-1}" # default to 1 CPU per task
 DIST="${DIST:-block}"
-CPU_BIND="${CPU_BIND:-map_cpu:49,57,17,25,1,9,33,41}"
-
-if [[ "${CPU_BIND}" == map_cpu:* && "${CPUS_PER_TASK}" -ne 1 ]]; then
-  echo "WARN: map_cpu binding requires CPUS_PER_TASK=1; overriding." >&2
-  CPUS_PER_TASK=1
-fi
+CPU_BIND="${CPU_BIND:-cores}"
 
 USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-1}"
 GPU_WRAPPER=()
