@@ -37,6 +37,16 @@ add_bind "${SCRATCH_ROOT}"
 add_bind "${PROJECT_ROOT}"
 add_bind "${HOME_ROOT}"
 
+APPTAINER_CMD="${APPTAINER_CMD:-apptainer}"
+if ! command -v "${APPTAINER_CMD}" >/dev/null 2>&1; then
+  if command -v singularity >/dev/null 2>&1; then
+    APPTAINER_CMD="singularity"
+  else
+    echo "Apptainer/Singularity not found in PATH." >&2
+    exit 1
+  fi
+fi
+
 MPI_MODE="${MPI_MODE:-host}" # host|container
 SRUN_MPI_FLAG=()
 if [[ "${MPI_MODE}" == "container" ]]; then
@@ -116,5 +126,5 @@ if [[ -n "${TIME_LIMIT}" ]]; then
 fi
 
 "${SRUN_BASE[@]}" \
-  apptainer exec "${APPTAINER_GPU_FLAG}" "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
+  "${APPTAINER_CMD}" exec "${APPTAINER_GPU_FLAG}" "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
   "${BENCH_CMD[@]}"
