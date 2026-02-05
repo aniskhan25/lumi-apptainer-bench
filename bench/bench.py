@@ -8,7 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
-from tests import allreduce, check_rocm, gemm_torch, kernel_mix
+from tests import allreduce, check_rocm, ddp_step, gemm_torch, kernel_mix
 
 
 def _utc_now():
@@ -205,6 +205,24 @@ def cmd_multi(args):
     return 0
 
 
+def cmd_ddp(args):
+    payload = _base_payload()
+    result = ddp_step.run_ddp_step(
+        batch_size=args.batch_size,
+        input_size=args.input_size,
+        output_size=args.output_size,
+        warmup=args.warmup,
+        iters=args.iters,
+        dtype_name=args.dtype,
+    )
+    if "error" in result:
+        _add_warning(payload, f"ddp: {result['error']}")
+    payload["tests"] = {"ddp_step": result}
+    if _is_rank0():
+        _write_json(args.out, payload)
+    return 0 if "error" not in result else 1
+
+
 def cmd_compare(args):
     compare_path = os.path.join(os.path.dirname(__file__), "compare.sh")
     cmd = [compare_path] + args.args
@@ -257,6 +275,15 @@ def build_parser():
         help="Run all-reduce sweep (default behavior).",
     )
 
+    ddp = subparsers.add_parser("ddp", help="minimal DDP step benchmark")
+    ddp.add_argument("--out", required=True, help="Output JSON path")
+    ddp.add_argument("--batch-size", type=int, default=int(_env("BENCH_DDP_BATCH", "64")))
+    ddp.add_argument("--input-size", type=int, default=int(_env("BENCH_DDP_INPUT", "4096")))
+    ddp.add_argument("--output-size", type=int, default=int(_env("BENCH_DDP_OUTPUT", "4096")))
+    ddp.add_argument("--dtype", default=_env("BENCH_DDP_DTYPE", "bfloat16"))
+    ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
+    ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
+
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)
 
@@ -273,6 +300,8 @@ def main(argv=None):
         return cmd_single(args)
     if args.command == "multi":
         return cmd_multi(args)
+    if args.command == "ddp":
+        return cmd_ddp(args)
     if args.command == "compare":
         return cmd_compare(args)
 

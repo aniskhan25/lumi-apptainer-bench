@@ -55,6 +55,17 @@ SCHEMA = {
                 "checksum": "string",
             }
         },
+        "ddp_step": {
+            "batch_size": "int",
+            "input_size": "int",
+            "output_size": "int",
+            "dtype": "string",
+            "world_size": "int",
+            "step_time_ms_avg": "float",
+            "step_time_ms_p50": "float",
+            "step_time_ms_p95": "float",
+            "samples_per_sec": "float",
+        },
     },
     "optional": {
         "git_rev": "string",

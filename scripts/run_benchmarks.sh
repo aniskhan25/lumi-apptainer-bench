@@ -21,6 +21,11 @@ export BENCH_TEMPLATE="./templates/single_8g_8r.sh"
   -- bench/run single --out \
   "${RESULTS_ROOT}/lumi_single.json"
 
+./templates/single_8g_8r.sh \
+  "${NEW_CONTAINER}" \
+  -- bench/run ddp --out \
+  "${RESULTS_ROOT}/lumi_ddp.json"
+
 ./templates/single_8g_16r.sh \
   "${NEW_CONTAINER}" \
   -- bench/run single \
@@ -40,6 +45,11 @@ export NODES=2
   "${NEW_CONTAINER}" \
   -- bench/run multi \
   --out "${RESULTS_ROOT}/lumi_multi.json"
+
+./templates/multi_ng_8rpn.sh \
+  "${NEW_CONTAINER}" \
+  -- bench/run ddp \
+  --out "${RESULTS_ROOT}/lumi_ddp_2n.json"
 
 # -----------------------------------------------------------------------------
 # 3) Filesystem / environment check.
