@@ -5,6 +5,13 @@ standardized `srun`/`sbatch` templates and structured JSON output. The
 goal is to validate container changes against a small, repeatable set
 of ML-relevant kernels and collectives.
 
+## Getting Started
+Clone the repository:
+```bash
+git clone https://github.com/aniskhan25/lumi-apptainer-bench.git
+cd lumi-apptainer-bench
+```
+
 **What’s in this repo**
 1. `bench/bench.py`: CLI entrypoint that emits JSON with system + test results.
 2. `bench/tests/`: small, focused tests (`gemm`, `kernel_mix`, `allreduce`, `check`).
@@ -16,6 +23,33 @@ of ML-relevant kernels and collectives.
 Use the templates and point at the container image, for example:
 ```bash
 ./templates/single_8g_8r.sh /path/to/container.sif -- bench/run single --out /scratch/$PROJECT_NAME/$USER/bench_results/lumi_single.json
+```
+
+### Run The Full Benchmark On LUMI
+The repository includes a runbook script that launches the standard benchmark set and the old-vs-new comparisons.
+
+Set the required environment:
+```bash
+export PROJECT_NAME=project_462000131
+export PARTITION=standard-g
+export ACCOUNT="${PROJECT_NAME}"
+```
+
+Review the container paths at the top of [`scripts/run_benchmarks.sh`](/Users/anisrahm/Documents/lumi-apptainer-bench/scripts/run_benchmarks.sh), then run:
+```bash
+./scripts/run_benchmarks.sh
+```
+
+This runs:
+1. Single-node compute benchmarks.
+2. Single-node DDP benchmark.
+3. Two-node allreduce and DDP benchmarks.
+4. Filesystem check.
+5. Old-vs-new comparison jobs.
+
+Results are written under:
+```bash
+/scratch/$PROJECT_NAME/$USER/bench_results
 ```
 
 ## Latest Results Summary (2026-02-04)
