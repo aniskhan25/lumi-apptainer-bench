@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import sys
 import json
 import argparse
 import subprocess
@@ -9,6 +8,9 @@ from datetime import datetime, timezone
 
 from common import env_detect, json_schema
 from tests import allreduce, check_rocm, ddp_step, gemm_torch, kernel_mix
+
+
+DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
 
 
 def _utc_now():
@@ -179,14 +181,7 @@ def _parse_sizes(value):
 
 def cmd_multi(args):
     payload = _base_payload()
-    sizes = _parse_sizes(args.message_sizes) or [
-        1024,
-        4096,
-        16384,
-        65536,
-        262144,
-        1048576,
-    ]
+    sizes = _parse_sizes(args.message_sizes) or DEFAULT_ALLREDUCE_SIZES
     allreduce_result = allreduce.run_allreduce(sizes, iters=args.iters)
     if "error" in allreduce_result:
         _add_warning(payload, f"multi: {allreduce_result['error']}")
@@ -235,6 +230,7 @@ def build_parser():
 
     check = subparsers.add_parser("check", help="check benchmark")
     check.add_argument("--out", required=True, help="Output JSON path")
+    check.set_defaults(func=cmd_check)
 
     single = subparsers.add_parser("single", help="single benchmark")
     single.add_argument("--out", required=True, help="Output JSON path")
@@ -264,6 +260,7 @@ def build_parser():
     single.set_defaults(softmax_fp32=softmax_default)
     single.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "2")))
     single.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "5")))
+    single.set_defaults(func=cmd_single)
 
     multi = subparsers.add_parser("multi", help="multi benchmark")
     multi.add_argument("--out", required=True, help="Output JSON path")
@@ -274,6 +271,7 @@ def build_parser():
         action="store_true",
         help="Run all-reduce sweep (default behavior).",
     )
+    multi.set_defaults(func=cmd_multi)
 
     ddp = subparsers.add_parser("ddp", help="minimal DDP step benchmark")
     ddp.add_argument("--out", required=True, help="Output JSON path")
@@ -283,9 +281,11 @@ def build_parser():
     ddp.add_argument("--dtype", default=_env("BENCH_DDP_DTYPE", "bfloat16"))
     ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
     ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
+    ddp.set_defaults(func=cmd_ddp)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)
+    compare.set_defaults(func=cmd_compare)
 
     return parser
 
@@ -293,20 +293,7 @@ def build_parser():
 def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
-
-    if args.command == "check":
-        return cmd_check(args)
-    if args.command == "single":
-        return cmd_single(args)
-    if args.command == "multi":
-        return cmd_multi(args)
-    if args.command == "ddp":
-        return cmd_ddp(args)
-    if args.command == "compare":
-        return cmd_compare(args)
-
-    parser.print_help()
-    return 2
+    return args.func(args)
 
 
 if __name__ == "__main__":

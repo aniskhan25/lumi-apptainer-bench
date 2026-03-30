@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  bench/compare.sh --old <old.sif> --new <new.sif> --mode <single|multi> --results-dir <dir> [--template <path>] [-- <bench args>]
+  bench/compare.sh --old <old.sif> --new <new.sif> --mode <check|single|multi|ddp> --results-dir <dir> [--template <path>] [-- <bench args>]
 
 Either pass --template or set BENCH_TEMPLATE in the environment.
 USAGE
@@ -145,6 +145,12 @@ ar_bw_new = avg(new.get("tests", {}).get("multi", {}).get("allreduce", {}).get("
 ar_lat_old = avg(old.get("tests", {}).get("multi", {}).get("allreduce", {}).get("latency_us", []))
 ar_lat_new = avg(new.get("tests", {}).get("multi", {}).get("allreduce", {}).get("latency_us", []))
 
+ddp_samples_old = old.get("tests", {}).get("ddp_step", {}).get("samples_per_sec")
+ddp_samples_new = new.get("tests", {}).get("ddp_step", {}).get("samples_per_sec")
+
+ddp_step_old = old.get("tests", {}).get("ddp_step", {}).get("step_time_ms_avg")
+ddp_step_new = new.get("tests", {}).get("ddp_step", {}).get("step_time_ms_avg")
+
 thr_gemm = float(os.environ.get("BENCH_REGRESS_GEMM_PCT", "10"))
 thr_bw = float(os.environ.get("BENCH_REGRESS_ALLREDUCE_BW_PCT", "10"))
 thr_lat = float(os.environ.get("BENCH_REGRESS_LATENCY_PCT", "15"))
@@ -172,6 +178,8 @@ add_metric("single_gemm_tflops", gemm_old, gemm_new, "drop")
 add_metric("single_kernel_mix_p50_ms", km_old, km_new, "lat_increase")
 add_metric("multi_allreduce_bw_avg_gbps", ar_bw_old, ar_bw_new, "bw_drop")
 add_metric("multi_allreduce_lat_avg_us", ar_lat_old, ar_lat_new, "lat_increase")
+add_metric("ddp_samples_per_sec", ddp_samples_old, ddp_samples_new, "drop")
+add_metric("ddp_step_time_ms_avg", ddp_step_old, ddp_step_new, "lat_increase")
 
 regressions = [k for k, v in metrics.items() if v.get("regression")]
 

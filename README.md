@@ -51,5 +51,3 @@ Use the templates and point at the container image, for example:
 Notes:
 1. Allreduce bandwidth values are in **GB/s** (bytes/sec / 1e9).
 2. See `bench_results/` for full JSON payloads.
-
-See `implementation_plan.md` for the full plan.
