@@ -52,6 +52,38 @@ Results are written under:
 /scratch/$PROJECT_NAME/$USER/bench_results
 ```
 
+Expected result files:
+1. `lumi_single.json`
+2. `lumi_ddp.json`
+3. `lumi_single_16r.json`
+4. `lumi_allreduce.json`
+5. `lumi_multi.json`
+6. `lumi_ddp_2n.json`
+7. `lumi_check.json`
+
+Expected comparison directories:
+1. `lumi_check_compare/`
+2. `lumi_ddp_compare/`
+3. `lumi_multi_compare/`
+4. `lumi_ddp_2n_compare/`
+5. `lumi_single_16r_compare/`
+
+### How To Read The Results
+The main verdict lives in each comparison directory's `delta.json`.
+
+Look at:
+1. `metrics`: old value, new value, and percent change.
+2. `regressions`: metrics that crossed the configured threshold.
+3. `regression_count`: number of flagged regressions.
+
+Typical interpretation:
+1. `single_gemm_tflops`: single-GPU compute throughput.
+2. `single_kernel_mix_p50_ms`: latency of the mixed kernel microbenchmark.
+3. `multi_allreduce_bw_avg_gbps`: average allreduce bandwidth.
+4. `multi_allreduce_lat_avg_us`: average allreduce latency.
+5. `ddp_samples_per_sec`: DDP step throughput.
+6. `ddp_step_time_ms_avg`: average DDP step time.
+
 ## Latest Results Summary (2026-02-04)
 
 **Single-node tests**
