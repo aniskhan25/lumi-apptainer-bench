@@ -52,6 +52,16 @@ Results are written under:
 /scratch/$PROJECT_NAME/$USER/bench_results
 ```
 
+To generate Markdown summary tables from an existing results directory:
+```bash
+python3 ./scripts/summarize_results.py /scratch/$PROJECT_NAME/$USER/bench_results
+```
+
+If you are running from inside this repo with local copied results, you can also use:
+```bash
+python3 ./scripts/summarize_results.py bench_results
+```
+
 Expected result files:
 1. `lumi_single.json`
 2. `lumi_ddp.json`
