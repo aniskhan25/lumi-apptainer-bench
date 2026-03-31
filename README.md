@@ -84,6 +84,22 @@ Typical interpretation:
 5. `ddp_samples_per_sec`: DDP step throughput.
 6. `ddp_step_time_ms_avg`: average DDP step time.
 
+## Comparison Methodology
+This repository is intended to answer a narrow question: does a new container perform at a similar level to a known stable container on the same LUMI infrastructure?
+
+To keep the comparison fair:
+1. Use the same partition, node count, and template for the old and new container.
+2. Keep benchmark parameters fixed across runs, including message sizes, DDP settings, and output paths.
+3. Use the same launcher defaults, including CPU binding, CPU allocation, and network environment.
+4. Compare old and new results from the generated `delta.json` files rather than isolated raw numbers.
+
+Practical guidance:
+1. Treat the templates and [`scripts/run_benchmarks.sh`](/Users/anisrahm/Documents/lumi-apptainer-bench/scripts/run_benchmarks.sh) as the baseline execution path.
+2. Avoid adding workload-specific tuning knobs when validating containers, unless the same knobs are applied to both images.
+3. If a metric is noisy, repeat the comparison rather than changing tuning parameters mid-stream.
+
+This repo is for fair container assessment, not for one-off maximum performance tuning.
+
 ## Latest Results Summary (2026-02-04)
 
 **Single-node tests**
