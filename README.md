@@ -94,6 +94,18 @@ Typical interpretation:
 5. `ddp_samples_per_sec`: DDP step throughput.
 6. `ddp_step_time_ms_avg`: average DDP step time.
 
+Metric glossary:
+1. `DDP`: PyTorch DistributedDataParallel, where the same model is trained across multiple GPUs or nodes and gradients are synchronized between ranks.
+2. `GEMM TFLOPS`: raw GPU matrix multiplication throughput.
+3. `GEMM p50 ms`: median time for one matrix multiply.
+4. `KernelMix p50 ms`: median time for a small transformer-like mix of GPU operations.
+5. `Allreduce BW (GB/s)`: how fast data is reduced and exchanged across GPUs or nodes.
+6. `Allreduce Lat (us)`: how long one allreduce operation takes.
+7. `DDP samples/sec`: how many training samples per second a distributed data parallel step processes.
+8. `DDP step avg ms`: average end-to-end time of one DDP training step.
+9. `DDP step p95 ms`: slower-tail latency of DDP training steps.
+10. `Check`: a sanity test that verifies the runtime environment and basic GPU or container visibility.
+
 ## Comparison Methodology
 This repository is intended to answer a narrow question: does a new container perform at a similar level to a known stable container on the same LUMI infrastructure?
 
