@@ -13,6 +13,9 @@ require_template_config() {
   : "${TIME_LIMIT:?set TIME_LIMIT before calling lumi_init}"
 }
 
+
+LUMI_GPU_CPU_BIND_MASKS="0x00fe000000000000,0xfe00000000000000,0x0000000000fe0000,0x00000000fe000000,0x00000000000000fe,0x000000000000fe00,0x000000fe00000000,0x0000fe0000000000"
+
 resolve_apptainer_cmd() {
   APPTAINER_CMD="${APPTAINER_CMD:-apptainer}"
   if command -v "${APPTAINER_CMD}" >/dev/null 2>&1; then
@@ -56,6 +59,8 @@ lumi_init() {
 
   DIST="${DIST:-block}"
   CPU_BIND="${CPU_BIND:-cores}"
+  ENABLE_LUMI_HSN="${ENABLE_LUMI_HSN:-0}"
+  ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-0}"
   RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
   RESULTS_DIR="${RESULTS_ROOT}/${RUN_ID}"
   RESULTS_JSON="${RESULTS_DIR}/results.json"
@@ -76,6 +81,11 @@ lumi_init() {
   export BENCH_DIST="${DIST}"
   export BENCH_CPU_BIND="${CPU_BIND}"
 
+  if [[ "${ENABLE_LUMI_HSN}" == "1" ]]; then
+    export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-hsn0,hsn1,hsn2,hsn3}"
+    export NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-PHB}"
+  fi
+
   GPU_WRAPPER=()
   if [[ "${USE_ROCR_VISIBLE_DEVICES:-0}" == "1" ]]; then
     GPU_WRAPPER=(bash -lc 'export ROCR_VISIBLE_DEVICES=${SLURM_LOCALID}; exec "$@"' --)
@@ -90,6 +100,9 @@ lumi_init() {
   )
   if [[ "${GPUS_PER_NODE}" -gt 0 ]]; then
     SRUN_BASE+=(--gpus-per-node="${GPUS_PER_NODE}")
+  fi
+  if [[ "${ENABLE_LUMI_CPU_MASKS}" == "1" ]]; then
+    CPU_BIND="mask_cpu:${CPU_BIND_MASKS:-${LUMI_GPU_CPU_BIND_MASKS}}"
   fi
   SRUN_BASE+=(
     --cpus-per-task="${CPUS_PER_TASK}"
@@ -126,6 +139,10 @@ lumi_log_env() {
     echo "distribution=${DIST}"
     echo "cpu_bind=${CPU_BIND}"
     echo "time_limit=${TIME_LIMIT}"
+    if [[ "${ENABLE_LUMI_HSN}" == "1" ]]; then
+      echo "nccl_socket_ifname=${NCCL_SOCKET_IFNAME}"
+      echo "nccl_net_gdr_level=${NCCL_NET_GDR_LEVEL}"
+    fi
     echo "bench_cmd=${BENCH_CMD[*]}"
     srun --version || true
   } | tee "${LOG_DIR}/run_env.txt"
