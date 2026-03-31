@@ -2,6 +2,17 @@
 
 set -euo pipefail
 
+# Wrapper templates must set these before calling lumi_init:
+# CONTAINER_IMAGE, NODES, NTASKS_PER_NODE, GPUS_PER_NODE, CPUS_PER_TASK, TIME_LIMIT.
+require_template_config() {
+  : "${CONTAINER_IMAGE:?container image path required}"
+  : "${NODES:?set NODES before calling lumi_init}"
+  : "${NTASKS_PER_NODE:?set NTASKS_PER_NODE before calling lumi_init}"
+  : "${GPUS_PER_NODE:?set GPUS_PER_NODE before calling lumi_init}"
+  : "${CPUS_PER_TASK:?set CPUS_PER_TASK before calling lumi_init}"
+  : "${TIME_LIMIT:?set TIME_LIMIT before calling lumi_init}"
+}
+
 resolve_apptainer_cmd() {
   APPTAINER_CMD="${APPTAINER_CMD:-apptainer}"
   if command -v "${APPTAINER_CMD}" >/dev/null 2>&1; then
@@ -16,6 +27,7 @@ resolve_apptainer_cmd() {
 }
 
 lumi_init() {
+  require_template_config
   PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_465000001)}"
   PARTITION="${PARTITION:-standard-g}"
   ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"

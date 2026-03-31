@@ -11,6 +11,12 @@ from tests import allreduce, check_rocm, ddp_step, gemm_torch, kernel_mix
 
 
 DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
+EMPTY_ALLREDUCE_RESULT = {
+    "message_sizes_bytes": [],
+    "bandwidth_gbps": [],
+    "latency_us": [],
+    "checksum": "",
+}
 
 
 def _utc_now():
@@ -111,42 +117,57 @@ def _add_warning(payload, message):
     warnings.append(message)
 
 
+def _warning_from_error(prefix, result):
+    error = result.get("error")
+    if error:
+        return f"{prefix}: {error}"
+    return None
+
+
+def _write_results(out_path, tests, warnings=None):
+    payload = _base_payload()
+    payload["tests"] = tests
+    for warning in warnings or []:
+        _add_warning(payload, warning)
+    _write_json(out_path, payload)
+
+
 def cmd_check(args):
     if not _is_rank0():
         return 0
-    payload = _base_payload()
     cache_root = _env("BENCH_CACHE_ROOT", "")
     check = check_rocm.run_check(cache_root)
-    payload["tests"] = {"check": check}
+    warnings = []
     if check.get("status") != "pass":
-        _add_warning(payload, "check: failures detected")
-    _write_json(args.out, payload)
+        warnings.append("check: failures detected")
+    _write_results(args.out, {"check": check}, warnings)
     return 0 if check.get("status") == "pass" else 1
 
 
 def cmd_single(args):
     if not _is_rank0():
         return 0
-    payload = _base_payload()
     gemm = gemm_torch.run_gemm(
         size=args.gemm_size,
         dtype_name=args.dtype,
         warmup=args.warmup,
         iters=args.iters,
     )
-    if "error" in gemm:
-        _add_warning(payload, f"single: {gemm['error']}")
-
     mix = kernel_mix.run_kernel_mix(
         size=args.kernel_mix_size,
         warmup=args.warmup,
         iters=args.iters,
         softmax_fp32=args.softmax_fp32,
     )
-    if "error" in mix:
-        _add_warning(payload, f"single: kernel_mix {mix['error']}")
-
-    payload["tests"] = {
+    warnings = [
+        warning
+        for warning in (
+            _warning_from_error("single", gemm),
+            _warning_from_error("single: kernel_mix", mix),
+        )
+        if warning
+    ]
+    tests = {
         "single": {
             "gemm": {
                 "dtype": gemm.get("dtype", "unknown"),
@@ -160,7 +181,7 @@ def cmd_single(args):
             },
         }
     }
-    _write_json(args.out, payload)
+    _write_results(args.out, tests, warnings)
     return 0
 
 
@@ -180,28 +201,20 @@ def _parse_sizes(value):
 
 
 def cmd_multi(args):
-    payload = _base_payload()
     sizes = _parse_sizes(args.message_sizes) or DEFAULT_ALLREDUCE_SIZES
-    allreduce_result = allreduce.run_allreduce(sizes, iters=args.iters)
-    if "error" in allreduce_result:
-        _add_warning(payload, f"multi: {allreduce_result['error']}")
-        allreduce_payload = {
-            "message_sizes_bytes": [],
-            "bandwidth_gbps": [],
-            "latency_us": [],
-            "checksum": "",
-        }
-    else:
-        allreduce_payload = allreduce_result
-
-    payload["tests"] = {"multi": {"allreduce": allreduce_payload}}
+    result = allreduce.run_allreduce(sizes, iters=args.iters)
+    warnings = []
+    allreduce_payload = result
+    warning = _warning_from_error("multi", result)
+    if warning:
+        warnings.append(warning)
+        allreduce_payload = EMPTY_ALLREDUCE_RESULT
     if _is_rank0():
-        _write_json(args.out, payload)
+        _write_results(args.out, {"multi": {"allreduce": allreduce_payload}}, warnings)
     return 0
 
 
 def cmd_ddp(args):
-    payload = _base_payload()
     result = ddp_step.run_ddp_step(
         batch_size=args.batch_size,
         input_size=args.input_size,
@@ -210,11 +223,12 @@ def cmd_ddp(args):
         iters=args.iters,
         dtype_name=args.dtype,
     )
-    if "error" in result:
-        _add_warning(payload, f"ddp: {result['error']}")
-    payload["tests"] = {"ddp_step": result}
+    warnings = []
+    warning = _warning_from_error("ddp", result)
+    if warning:
+        warnings.append(warning)
     if _is_rank0():
-        _write_json(args.out, payload)
+        _write_results(args.out, {"ddp_step": result}, warnings)
     return 0 if "error" not in result else 1
 
 
