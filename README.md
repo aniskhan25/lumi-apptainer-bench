@@ -110,35 +110,34 @@ Practical guidance:
 
 This repo is for fair container assessment, not for one-off maximum performance tuning.
 
-## Latest Results Summary (2026-02-04)
+## Latest Results Summary (2026-03-31)
 
 **Single-node tests**
 | Run | Nodes | Tasks | GPU/node | GEMM TFLOPS | GEMM p50 ms | KernelMix p50 ms | Timestamp UTC |
 |---|---|---|---|---|---|---|---|
-| lumi_single.json | 1 | 8 | 8 | 104.518 | 1.315 | 0.188 | 2026-02-04T07:40:44Z |
-| lumi_single_16r.json | 1 | 16 | 8 | 105.985 | 1.297 | 0.173 | 2026-02-04T07:51:09Z |
+| lumi_single.json | 1 | 8 | 8 | 105.427 | 1.304 | 0.172 | 2026-03-31T09:50:14Z |
+| lumi_single_16r.json | 1 | 16 | 8 | 105.436 | 1.304 | 0.173 | 2026-03-31T10:05:55Z |
+
+**DDP tests**
+| Run | Nodes | Tasks | GPU/node | Samples/sec | Step avg ms | Step p95 ms | Timestamp UTC |
+|---|---|---|---|---|---|---|---|
+| lumi_ddp.json | 1 | 8 | 8 | 187476.029 | 2.731 | 2.795 | 2026-03-31T10:00:49Z |
+| lumi_ddp_2n.json | 2 | 16 | 8 | 278065.567 | 3.683 | 4.267 | 2026-03-31T10:29:34Z |
 
 **Multi-node allreduce tests**
 | Run | Nodes | Tasks | GPU/node | Avg BW (GB/s) | Avg Lat (us) | Timestamp UTC |
 |---|---|---|---|---|---|---|
-| lumi_allreduce.json | 2 | 16 | 8 | 0.014 | 14928.837 | 2026-02-04T07:47:07Z |
-| lumi_multi.json | 2 | 16 | 8 | 0.019 | 10661.517 | 2026-02-04T07:49:53Z |
+| lumi_allreduce.json | 2 | 16 | 8 | 1.057 | 281.590 | 2026-03-31T10:16:32Z |
+| lumi_multi.json | 2 | 16 | 8 | 0.992 | 138.161 | 2026-03-31T10:27:02Z |
 
 **Comparison deltas**
-| Run | GEMM TFLOPS Δ% | KernelMix p50 Δ% | Allreduce BW Δ% | Allreduce Lat Δ% | Regression count | Timestamp UTC |
-|---|---|---|---|---|---|---|
-| lumi_single_16r_compare/delta.json | -0.571 | 10.456 |  |  | 0 | 2026-02-04T08:06:51Z |
-| lumi_multi_compare/delta.json |  |  | -63.633 | 232.856 | 2 | 2026-02-04T08:02:57Z |
-
-**Allreduce per-message-size (lumi_multi_compare)**
-| Size (bytes) | Old BW (GB/s) | New BW (GB/s) | BW Δ% | Old Lat (us) | New Lat (us) | Lat Δ% |
-|---|---|---|---|---|---|---|
-| 1024 | 0.001 | 0.000 | -25.836 | 2000.264 | 2697.096 | 34.837 |
-| 4096 | 0.001 | 0.000 | -75.960 | 3337.143 | 13881.446 | 315.968 |
-| 16384 | 0.004 | 0.001 | -83.825 | 4400.247 | 27204.429 | 518.248 |
-| 65536 | 0.020 | 0.003 | -83.236 | 3330.874 | 19868.904 | 496.507 |
-| 262144 | 0.026 | 0.016 | -38.022 | 10067.695 | 16244.111 | 61.349 |
-| 1048576 | 0.176 | 0.062 | -64.824 | 5941.163 | 16889.714 | 184.283 |
+| Run | GEMM TFLOPS Δ% | KernelMix p50 Δ% | Allreduce BW Δ% | Allreduce Lat Δ% | DDP samples Δ% | DDP step Δ% | Regression count | Timestamp UTC |
+|---|---|---|---|---|---|---|---|---|
+| lumi_check_compare/delta.json |  |  |  |  |  |  | 0 | 2026-03-31T10:55:43Z |
+| lumi_ddp_compare/delta.json |  |  |  |  | 8.048 | -7.449 | 0 | 2026-03-31T11:02:28Z |
+| lumi_multi_compare/delta.json |  |  | 194.367 | -61.429 |  |  | 0 | 2026-03-31T11:16:33Z |
+| lumi_ddp_2n_compare/delta.json |  |  |  |  | 295.510 | -74.716 | 0 | 2026-03-31T11:37:26Z |
+| lumi_single_16r_compare/delta.json | -1.836 | 7.560 |  |  |  |  | 0 | 2026-03-31T11:54:57Z |
 
 Notes:
 1. Allreduce bandwidth values are in **GB/s** (bytes/sec / 1e9).
