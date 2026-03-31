@@ -142,3 +142,17 @@ This repo is for fair container assessment, not for one-off maximum performance 
 Notes:
 1. Allreduce bandwidth values are in **GB/s** (bytes/sec / 1e9).
 2. See `bench_results/` for full JSON payloads.
+
+### Result Analysis
+The new container passes the benchmark comparison on LUMI.
+
+Key observations:
+1. Single-node compute is effectively flat. GEMM stays around `105.4 TFLOPS` and no single-node regression is flagged.
+2. Single-node DDP improves modestly, with `+8.048%` samples/sec and `-7.449%` average step time.
+3. Multi-node allreduce improves significantly, with `+194.367%` bandwidth and `-61.429%` latency.
+4. Two-node DDP improves substantially, with `+295.510%` samples/sec and `-74.716%` average step time.
+
+Interpretation:
+1. The new container preserves single-node GPU compute performance.
+2. The biggest gains are in inter-node communication and distributed step execution.
+3. For this benchmark suite, the new container performs at a similar or better level than the previous stable container on LUMI.
