@@ -1,16 +1,38 @@
 #!/bin/bash
 set -euo pipefail
 
-# LUMI benchmark runbook. Update these two paths when container images change.
-OLD_CONTAINER="/appl/local/csc/soft/ai/images/pytorch_2.7.1_lumi.sif"
-NEW_CONTAINER="/appl/local/laifs/containers/lumi-multitorch-u24r64f21m43t29-20260319_153422/lumi-multitorch-full-u24r64f21m43t29-20260319_153422.sif"
+usage() {
+  cat <<'EOF'
+Usage:
+  export PROJECT_NAME=project_462000131
+  export OLD_CONTAINER=/path/to/old.sif
+  export NEW_CONTAINER=/path/to/new.sif
+  ./scripts/run_benchmarks.sh
 
-# Environment configuration.
-export PROJECT_NAME="${PROJECT_NAME:-project_462000131}"
+Optional:
+  export PARTITION=standard-g
+  export ACCOUNT=$PROJECT_NAME
+  export RESULTS_ROOT=/scratch/$PROJECT_NAME/$USER/bench_results
+EOF
+}
+
+require_env() {
+  local name="$1"
+  if [[ -z "${!name:-}" ]]; then
+    echo "Missing required environment variable: ${name}" >&2
+    usage >&2
+    exit 1
+  fi
+}
+
+require_env PROJECT_NAME
+require_env OLD_CONTAINER
+require_env NEW_CONTAINER
+
 export PARTITION="${PARTITION:-standard-g}"
 export ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
 
-RESULTS_ROOT="/scratch/${PROJECT_NAME}/${USER}/bench_results"
+RESULTS_ROOT="${RESULTS_ROOT:-/scratch/${PROJECT_NAME}/${USER}/bench_results}"
 
 run_template() {
   local template="$1"
@@ -31,22 +53,22 @@ run_compare() {
     --results-dir "${RESULTS_ROOT}/${results_dir}"
 }
 
-# 1) Single-node compute baselines.
+# 1. Single-node compute baselines.
 run_template "./templates/single_8g_8r.sh" "lumi_single.json" bench/run single
 run_template "./templates/single_8g_8r.sh" "lumi_ddp.json" bench/run ddp
 run_template "./templates/single_8g_16r.sh" "lumi_single_16r.json" bench/run single
 
-# 2) Multi-node collectives.
+# 2. Multi-node collectives.
 export NODES=2
 
 run_template "./templates/allreduce_sweep.sh" "lumi_allreduce.json" bench/run multi --allreduce
 run_template "./templates/multi_ng_8rpn.sh" "lumi_multi.json" bench/run multi
 run_template "./templates/multi_ng_8rpn.sh" "lumi_ddp_2n.json" bench/run ddp
 
-# 3) Filesystem / environment check.
+# 3. Filesystem and environment check.
 run_template "./templates/filesystem.sh" "lumi_check.json" bench/run check
 
-# 4) Comparisons (old vs new).
+# 4. Old-vs-new comparisons.
 run_compare "./templates/filesystem.sh" "check" "lumi_check_compare"
 run_compare "./templates/single_8g_8r.sh" "ddp" "lumi_ddp_compare"
 
