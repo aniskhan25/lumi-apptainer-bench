@@ -24,6 +24,8 @@ load_lumi_bindings_module() {
   if ! command -v module >/dev/null 2>&1; then
     return
   fi
+  # Local-LAIF must be loaded before lumi-aif-singularity-bindings is visible.
+  module load Local-LAIF >/dev/null 2>&1 || true
   if module load lumi-aif-singularity-bindings >/dev/null 2>&1; then
     LUMI_BINDINGS_MODULE_LOADED=1
   fi
