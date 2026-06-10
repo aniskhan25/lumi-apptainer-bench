@@ -26,8 +26,9 @@ require_env() {
 }
 
 require_env PROJECT_NAME
-require_env OLD_CONTAINER
-require_env NEW_CONTAINER
+
+OLD_CONTAINER="${OLD_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-u24r70f21m50t210-20260513_121430/lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif}"
+NEW_CONTAINER="${NEW_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-latest.sif}"
 
 export PARTITION="${PARTITION:-standard-g}"
 export ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
