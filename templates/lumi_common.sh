@@ -127,6 +127,12 @@ lumi_init() {
     "${SRUN_MPI_FLAG[@]}"
     --time="${TIME_LIMIT}"
   )
+  if [[ -n "${NODELIST:-}" ]]; then
+    SRUN_BASE+=(--nodelist="${NODELIST}")
+  fi
+  if [[ -n "${EXCLUDE_NODES:-}" ]]; then
+    SRUN_BASE+=(--exclude="${EXCLUDE_NODES}")
+  fi
 }
 
 lumi_override_bench_cmd() {
