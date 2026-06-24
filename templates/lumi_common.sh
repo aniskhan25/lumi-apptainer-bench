@@ -16,21 +16,6 @@ require_template_config() {
 
 LUMI_GPU_CPU_BIND_MASKS="0x00fe000000000000,0xfe00000000000000,0x0000000000fe0000,0x00000000fe000000,0x00000000000000fe,0x000000000000fe00,0x000000fe00000000,0x0000fe0000000000"
 
-load_lumi_bindings_module() {
-  LUMI_BINDINGS_MODULE_LOADED=0
-  if [[ "${LOAD_LUMI_AIF_BINDINGS:-1}" != "1" ]]; then
-    return
-  fi
-  if ! command -v module >/dev/null 2>&1; then
-    return
-  fi
-  # Local-LAIF must be loaded before lumi-aif-singularity-bindings is visible.
-  module load Local-LAIF >/dev/null 2>&1 || true
-  if module load lumi-aif-singularity-bindings >/dev/null 2>&1; then
-    LUMI_BINDINGS_MODULE_LOADED=1
-  fi
-}
-
 resolve_apptainer_cmd() {
   APPTAINER_CMD="${APPTAINER_CMD:-apptainer}"
   if command -v "${APPTAINER_CMD}" >/dev/null 2>&1; then
@@ -64,7 +49,9 @@ lumi_init() {
     --bind "${HOME_ROOT}:${HOME_ROOT}"
   )
 
-  load_lumi_bindings_module
+  module purge
+  module use /appl/local/laifs/modules
+  module load lumi-aif-singularity-bindings
   resolve_apptainer_cmd
 
   MPI_MODE="${MPI_MODE:-host}"
@@ -83,6 +70,12 @@ lumi_init() {
   LOG_DIR="${RESULTS_DIR}/logs"
 
   mkdir -p "${CACHE_ROOT}" "${RESULTS_DIR}" "${LOG_DIR}"
+
+  MIOPEN_DIR=$(mktemp -d)
+  export MIOPEN_CUSTOM_CACHE_DIR="${MIOPEN_DIR}/cache"
+  export MIOPEN_USER_DB="${MIOPEN_DIR}/config"
+  export TORCH_HOME="${TORCH_HOME:-${SCRATCH_ROOT}/${USER}/torch_home}"
+  mkdir -p "${TORCH_HOME}"
 
   export BENCH_CONTAINER_IMAGE="${CONTAINER_IMAGE}"
   export BENCH_RESULTS_DIR="${RESULTS_DIR}"
@@ -153,7 +146,6 @@ lumi_log_env() {
     echo "container_image=${CONTAINER_IMAGE}"
     echo "partition=${PARTITION}"
     echo "account=${ACCOUNT}"
-    echo "lumi_aif_singularity_bindings_loaded=${LUMI_BINDINGS_MODULE_LOADED}"
     echo "mpi_mode=${MPI_MODE}"
     echo "nodes=${NODES}"
     echo "ntasks_per_node=${NTASKS_PER_NODE}"
