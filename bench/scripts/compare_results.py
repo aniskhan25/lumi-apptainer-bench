@@ -57,6 +57,39 @@ METRICS = (
         "regression_mode": "increase",
         "threshold_label": "ddp_latency_increase_pct",
     },
+    {
+        "name": "jax_single_gemm_tflops",
+        "path": ("tests", "jax_single", "gemm", "tflops"),
+        "threshold_env": "BENCH_REGRESS_GEMM_PCT",
+        "default_threshold": 10.0,
+        "regression_mode": "drop",
+        "threshold_label": "gemm_drop_pct",
+    },
+    {
+        "name": "jax_multi_allreduce_bw_avg_gbps",
+        "path": ("tests", "jax_multi", "allreduce", "bandwidth_gbps"),
+        "reducer": "avg",
+        "threshold_env": "BENCH_REGRESS_ALLREDUCE_BW_PCT",
+        "default_threshold": 10.0,
+        "regression_mode": "drop",
+        "threshold_label": "allreduce_bw_drop_pct",
+    },
+    {
+        "name": "jax_ddp_samples_per_sec",
+        "path": ("tests", "jax_ddp_step", "samples_per_sec"),
+        "threshold_env": "BENCH_REGRESS_DDP_SAMPLES_PCT",
+        "default_threshold": 10.0,
+        "regression_mode": "drop",
+        "threshold_label": "ddp_samples_drop_pct",
+    },
+    {
+        "name": "jax_ddp_step_time_ms_avg",
+        "path": ("tests", "jax_ddp_step", "step_time_ms_avg"),
+        "threshold_env": "BENCH_REGRESS_DDP_LATENCY_PCT",
+        "default_threshold": 15.0,
+        "regression_mode": "increase",
+        "threshold_label": "ddp_latency_increase_pct",
+    },
 )
 
 

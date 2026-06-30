@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
-from tests import allreduce, check_rocm, ddp_step, gemm_torch, kernel_mix
+from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax, gemm_torch, gemm_jax, kernel_mix
 
 
 DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
@@ -238,6 +238,62 @@ def cmd_compare(args):
     return subprocess.call(cmd)
 
 
+def cmd_jax_single(args):
+    if not _is_rank0():
+        return 0
+    gemm = gemm_jax.run_gemm(
+        size=args.gemm_size,
+        dtype_name=args.dtype,
+        warmup=args.warmup,
+        iters=args.iters,
+    )
+    warnings = [w for w in (_warning_from_error("jax-single", gemm),) if w]
+    tests = {
+        "jax_single": {
+            "gemm": {
+                "dtype": gemm.get("dtype", "unknown"),
+                "tflops": gemm.get("tflops"),
+                "latency_p50_ms": gemm.get("latency_p50_ms"),
+                "latency_p95_ms": gemm.get("latency_p95_ms"),
+            }
+        }
+    }
+    _write_results(args.out, tests, warnings)
+    return 0
+
+
+def cmd_jax_multi(args):
+    sizes = _parse_sizes(args.message_sizes) or DEFAULT_ALLREDUCE_SIZES
+    result = allreduce_jax.run_allreduce(sizes, iters=args.iters)
+    warnings = []
+    allreduce_payload = result
+    warning = _warning_from_error("jax-multi", result)
+    if warning:
+        warnings.append(warning)
+        allreduce_payload = EMPTY_ALLREDUCE_RESULT
+    if _is_rank0():
+        _write_results(args.out, {"jax_multi": {"allreduce": allreduce_payload}}, warnings)
+    return 0
+
+
+def cmd_jax_ddp(args):
+    result = ddp_jax.run_ddp_step(
+        batch_size=args.batch_size,
+        input_size=args.input_size,
+        output_size=args.output_size,
+        warmup=args.warmup,
+        iters=args.iters,
+        dtype_name=args.dtype,
+    )
+    warnings = []
+    warning = _warning_from_error("jax-ddp", result)
+    if warning:
+        warnings.append(warning)
+    if _is_rank0():
+        _write_results(args.out, {"jax_ddp_step": result}, warnings)
+    return 0 if "error" not in result else 1
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description="LUMI container benchmark")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -296,6 +352,30 @@ def build_parser():
     ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
     ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
     ddp.set_defaults(func=cmd_ddp)
+
+    jax_single = subparsers.add_parser("jax-single", help="JAX single-GPU benchmark")
+    jax_single.add_argument("--out", required=True)
+    jax_single.add_argument("--gemm-size", type=int, default=int(_env("BENCH_GEMM_SIZE", "4096")))
+    jax_single.add_argument("--dtype", default=_env("BENCH_GEMM_DTYPE", "bfloat16"))
+    jax_single.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "2")))
+    jax_single.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "5")))
+    jax_single.set_defaults(func=cmd_jax_single)
+
+    jax_multi = subparsers.add_parser("jax-multi", help="JAX multi-node allreduce benchmark")
+    jax_multi.add_argument("--out", required=True)
+    jax_multi.add_argument("--message-sizes", default=_env("BENCH_ALLREDUCE_SIZES", ""))
+    jax_multi.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "5")))
+    jax_multi.set_defaults(func=cmd_jax_multi)
+
+    jax_ddp = subparsers.add_parser("jax-ddp", help="JAX DDP-equivalent step benchmark")
+    jax_ddp.add_argument("--out", required=True)
+    jax_ddp.add_argument("--batch-size", type=int, default=int(_env("BENCH_DDP_BATCH", "64")))
+    jax_ddp.add_argument("--input-size", type=int, default=int(_env("BENCH_DDP_INPUT", "4096")))
+    jax_ddp.add_argument("--output-size", type=int, default=int(_env("BENCH_DDP_OUTPUT", "4096")))
+    jax_ddp.add_argument("--dtype", default=_env("BENCH_DDP_DTYPE", "bfloat16"))
+    jax_ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
+    jax_ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
+    jax_ddp.set_defaults(func=cmd_jax_ddp)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)
