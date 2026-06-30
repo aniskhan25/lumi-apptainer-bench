@@ -15,7 +15,9 @@ def run_allreduce(message_sizes, iters=5):
     if not ok:
         return {"error": f"distributed init failed: {err}"}
 
-    device = torch.device("cuda")
+    device_index = distributed.local_cuda_index(torch)
+    device = torch.device("cuda", device_index)
+    torch.cuda.set_device(device)
     results = {
         "message_sizes_bytes": [],
         "bandwidth_gbps": [],
