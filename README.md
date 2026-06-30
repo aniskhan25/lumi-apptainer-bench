@@ -29,12 +29,12 @@ cd lumi-apptainer-bench
 Set the required environment:
 ```bash
 export PROJECT_NAME=project_462000131
-export OLD_CONTAINER=/appl/local/csc/soft/ai/images/pytorch_2.7.1_lumi.sif
-export NEW_CONTAINER=/appl/local/laifs/containers/lumi-multitorch-latest.sif
 ```
 
-Optional overrides:
+Optional overrides (defaults are set in the script):
 ```bash
+export OLD_CONTAINER=/path/to/old.sif
+export NEW_CONTAINER=/path/to/new.sif
 export PARTITION=standard-g
 export ACCOUNT="$PROJECT_NAME"
 export RESULTS_ROOT=/scratch/$PROJECT_NAME/$USER/bench_results
