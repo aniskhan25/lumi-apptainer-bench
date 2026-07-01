@@ -1,7 +1,6 @@
 import time
 import functools
 
-import numpy as np
 from tests import allreduce_jax
 
 
@@ -16,8 +15,6 @@ def run_ddp_step(
     try:
         import jax
         import jax.numpy as jnp
-        from jax.experimental.shard_map import shard_map
-        from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
     except ImportError:
         return {"error": "jax not available"}
 
@@ -26,55 +23,72 @@ def run_ddp_step(
         return {"error": f"distributed init failed: {err}"}
 
     n_total = len(jax.devices())
+    n_local = len(jax.local_devices())
     if n_total < 2:
         return {"error": f"need at least 2 total devices, got {n_total}"}
 
     dtype = getattr(jnp, dtype_name, jnp.bfloat16)
-    local_device = jax.local_devices()[0]
 
-    # 1D mesh over all 16 global devices (1 per process).
-    # With 1 GPU per process, RCCL does a plain network allreduce — no GDR clique.
-    mesh = Mesh(np.array(jax.devices()), ('d',))
-
-    # w is replicated: every device holds the full weight matrix.
-    # x is sharded: each device holds 1 batch slice.
-    @functools.partial(
-        shard_map, mesh=mesh,
-        in_specs=(P(), P('d')),
-        out_specs=P(),
-    )
-    def step_fn(w, x):
-        # w: (input_size, output_size) — full weight, same on all devices
-        # x: (1, batch_size, input_size) — local data shard
-        x_local = x[0]
+    # ------------------------------------------------------------------ #
+    # Verification: each rank scales x by (rank+1) so every device gets a
+    # distinct gradient. If pmean is a real cross-process allreduce, rank 0
+    # sees the mean of (1..n_total); if it is a local no-op, rank 0 only
+    # sees its own gradient (scale=1).
+    #
+    # grad_w for rank r = batch_size * (r+1) * ones(input, output)
+    # correct avg        = batch_size * mean(1..n_total) * ones
+    # rank-0 no-op value = batch_size * 1 * ones
+    #
+    # w_after[0,0] lets us distinguish:
+    #   allreduce ok  -> 1.0 - 1e-3 * batch_size * (n_total+1)/2
+    #   local no-op   -> 1.0 - 1e-3 * batch_size * 1
+    # ------------------------------------------------------------------ #
+    @functools.partial(jax.pmap, axis_name="devices")
+    def verify_fn(w, x):
+        rank = jax.lax.axis_index("devices")
+        x_scaled = x * jnp.array(rank + 1, jnp.float32)
         _, grads = jax.value_and_grad(
-            lambda w: jnp.sum(jnp.dot(x_local, w))
+            lambda w: jnp.sum(jnp.dot(x_scaled, w))
         )(w)
-        avg_grads = jax.lax.pmean(grads, 'd')  # real cross-process allreduce
+        avg_grads = jax.lax.pmean(grads, "devices")
+        return w - jnp.array(1e-3, jnp.float32) * avg_grads
+
+    w_f32 = jnp.ones((n_local, input_size, output_size), jnp.float32)
+    x_f32 = jnp.ones((n_local, batch_size, input_size), jnp.float32)
+    w_after_verify = verify_fn(w_f32, x_f32)
+    actual_w0 = float(w_after_verify[0, 0, 0])
+
+    expected_w0 = 1.0 - 1e-3 * batch_size * (n_total + 1) / 2.0
+    noop_w0 = 1.0 - 1e-3 * batch_size * 1.0
+
+    tol = 0.01
+    if abs(actual_w0 - expected_w0) < tol:
+        allreduce_verified = True
+    elif abs(actual_w0 - noop_w0) < tol:
+        allreduce_verified = False
+    else:
+        allreduce_verified = None  # unexpected — partial or wrong collective
+
+    # ------------------------------------------------------------------ #
+    # Main benchmark
+    # ------------------------------------------------------------------ #
+    @functools.partial(jax.pmap, axis_name="devices")
+    def step_fn(w, x):
+        _, grads = jax.value_and_grad(
+            lambda w: jnp.sum(jnp.dot(x, w))
+        )(w)
+        avg_grads = jax.lax.pmean(grads, "devices")
         return w - jnp.array(1e-3, dtype=dtype) * avg_grads
 
-    # Build global arrays. w replicated, x sharded along the device axis.
-    local_w = jax.device_put(jnp.ones((input_size, output_size), dtype=dtype), local_device)
-    local_x = jax.device_put(jnp.ones((1, batch_size, input_size), dtype=dtype), local_device)
-
-    w = jax.make_array_from_single_device_arrays(
-        (input_size, output_size),
-        NamedSharding(mesh, P()),
-        [local_w],
-    )
-    x = jax.make_array_from_single_device_arrays(
-        (n_total, batch_size, input_size),
-        NamedSharding(mesh, P('d')),
-        [local_x],
-    )
+    w = jnp.ones((n_local, input_size, output_size), dtype=dtype)
+    x = jnp.ones((n_local, batch_size, input_size), dtype=dtype)
 
     def step_and_sync():
         nonlocal w
         w = step_fn(w, x)
         jax.block_until_ready(w)
 
-    # Trigger compilation.
-    step_and_sync()
+    step_and_sync()  # compile
 
     for _ in range(max(warmup, 0)):
         step_and_sync()
@@ -100,6 +114,10 @@ def run_ddp_step(
         "output_size": output_size,
         "dtype": dtype_name,
         "world_size": n_total,
+        "allreduce_verified": allreduce_verified,
+        "verify_w0_actual": actual_w0,
+        "verify_w0_expected_allreduce": expected_w0,
+        "verify_w0_expected_noop": noop_w0,
         "step_time_ms_avg": avg,
         "step_time_ms_p50": p50,
         "step_time_ms_p95": p95,
