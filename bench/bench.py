@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
-from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax, ddp_jax_multi, gemm_torch, gemm_jax, kernel_mix
+from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax_multi, gemm_torch, gemm_jax, kernel_mix
 
 
 DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
@@ -295,7 +295,7 @@ def cmd_jax_ddp_multi(args):
 
 
 def cmd_jax_ddp(args):
-    result = ddp_jax.run_ddp_step(
+    result = ddp_jax_multi.run_ddp_step(
         batch_size=args.batch_size,
         input_size=args.input_size,
         output_size=args.output_size,
@@ -354,11 +354,6 @@ def build_parser():
     multi.add_argument("--out", required=True, help="Output JSON path")
     multi.add_argument("--message-sizes", default=_env("BENCH_ALLREDUCE_SIZES", ""))
     multi.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "5")))
-    multi.add_argument(
-        "--allreduce",
-        action="store_true",
-        help="Run all-reduce sweep (default behavior).",
-    )
     multi.set_defaults(func=cmd_multi)
 
     ddp = subparsers.add_parser("ddp", help="minimal DDP step benchmark")
@@ -395,7 +390,7 @@ def build_parser():
     jax_ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
     jax_ddp.set_defaults(func=cmd_jax_ddp)
 
-    jax_ddp_multi = subparsers.add_parser("jax-ddp-multi", help="JAX multi-node DDP via jax.sharding mesh")
+    jax_ddp_multi = subparsers.add_parser("jax-ddp-multi", help="JAX multi-node DDP benchmark")
     jax_ddp_multi.add_argument("--out", required=True)
     jax_ddp_multi.add_argument("--batch-size", type=int, default=int(_env("BENCH_DDP_BATCH", "64")))
     jax_ddp_multi.add_argument("--input-size", type=int, default=int(_env("BENCH_DDP_INPUT", "4096")))

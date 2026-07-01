@@ -63,29 +63,26 @@ def run_allreduce(message_sizes, iters=5):
         "checksum": "",
     }
 
-    try:
-        for size in message_sizes:
-            numel = max(size // 4, 1)
-            per_device = max(numel // n_local, 1)
-            x = jnp.ones((n_local, per_device), dtype=jnp.float32)
+    for size in message_sizes:
+        numel = max(size // 4, 1)
+        per_device = max(numel // n_local, 1)
+        x = jnp.ones((n_local, per_device), dtype=jnp.float32)
 
-            for _ in range(2):
-                allreduce_fn(x).block_until_ready()
+        for _ in range(2):
+            allreduce_fn(x).block_until_ready()
 
-            start = time.perf_counter()
-            for _ in range(max(iters, 1)):
-                allreduce_fn(x).block_until_ready()
-            end = time.perf_counter()
+        start = time.perf_counter()
+        for _ in range(max(iters, 1)):
+            allreduce_fn(x).block_until_ready()
+        end = time.perf_counter()
 
-            avg_time = (end - start) / max(iters, 1)
-            bandwidth = (size / avg_time) / 1.0e9 if avg_time > 0 else 0.0
+        avg_time = (end - start) / max(iters, 1)
+        bandwidth = (size / avg_time) / 1.0e9 if avg_time > 0 else 0.0
 
-            results["message_sizes_bytes"].append(size)
-            results["bandwidth_gbps"].append(bandwidth)
-            results["latency_us"].append(avg_time * 1.0e6)
+        results["message_sizes_bytes"].append(size)
+        results["bandwidth_gbps"].append(bandwidth)
+        results["latency_us"].append(avg_time * 1.0e6)
 
-        last = allreduce_fn(x)
-        results["checksum"] = f"{float(last[0, 0]):.4f}"
-        return results
-    finally:
-        pass
+    last = allreduce_fn(x)
+    results["checksum"] = f"{float(last[0, 0]):.4f}"
+    return results
