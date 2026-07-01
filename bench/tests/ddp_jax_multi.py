@@ -25,13 +25,20 @@ def _init_distributed():
         return False, "missing MASTER_ADDR"
     master_port = os.environ.get("MASTER_PORT", "29500")
 
+    # How many GPUs are local — read from Slurm env, fall back to 8 (LUMI standard)
+    local_gpu_count = distributed.env_int(
+        "LOCAL_WORLD_SIZE",
+        distributed.env_int("SLURM_GPUS_PER_NODE", 8),
+    )
+    local_device_ids = list(range(local_gpu_count))
+
     try:
         import jax
-        # No local_device_ids restriction — each process uses all visible GPUs
         jax.distributed.initialize(
             coordinator_address=f"{master_addr}:{master_port}",
             num_processes=world_size,
             process_id=rank,
+            local_device_ids=local_device_ids,
         )
         _initialized = True
         return True, ""
