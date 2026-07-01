@@ -32,7 +32,7 @@ resolve_apptainer_cmd() {
 lumi_init() {
   require_template_config
   PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_465000001)}"
-  PARTITION="${PARTITION:-standard-g}"
+  PARTITION="${PARTITION:-dev-g}"
   ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
 
   SCRATCH_ROOT="/scratch/${PROJECT_NAME}"

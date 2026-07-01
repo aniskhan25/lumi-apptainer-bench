@@ -10,7 +10,7 @@ Usage:
   ./scripts/run_benchmarks.sh
 
 Optional:
-  export PARTITION=standard-g
+  export PARTITION=dev-g
   export ACCOUNT=$PROJECT_NAME
   export RESULTS_ROOT=/scratch/$PROJECT_NAME/$USER/bench_results
 EOF
@@ -30,7 +30,7 @@ require_env PROJECT_NAME
 OLD_CONTAINER="${OLD_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-u24r70f21m50t210-20260415_130625/lumi-multitorch-full-u24r70f21m50t210-20260415_130625.sif}"
 NEW_CONTAINER="${NEW_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-latest.sif}"
 
-export PARTITION="${PARTITION:-standard-g}"
+export PARTITION="${PARTITION:-dev-g}"
 export ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
 
 RESULTS_ROOT="${RESULTS_ROOT:-/scratch/${PROJECT_NAME}/${USER}/bench_results}"
