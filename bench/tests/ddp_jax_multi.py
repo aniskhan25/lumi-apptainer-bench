@@ -1,49 +1,7 @@
-import os
 import time
-import numpy as np
 from functools import partial
 
-from tests import distributed
-
-_initialized = False
-
-
-def _init_distributed():
-    global _initialized
-    if _initialized:
-        return True, ""
-
-    rank = distributed.env_int("RANK", distributed.env_int("SLURM_PROCID", -1))
-    world_size = distributed.env_int("WORLD_SIZE", distributed.env_int("SLURM_NTASKS", -1))
-    if rank < 0 or world_size < 1:
-        return False, "missing rank/world_size"
-
-    master_addr = distributed.master_addr_from_slurm()
-    if not master_addr:
-        master_addr = os.environ.get("MASTER_ADDR", "")
-    if not master_addr:
-        return False, "missing MASTER_ADDR"
-    master_port = os.environ.get("MASTER_PORT", "29500")
-
-    # How many GPUs are local — read from Slurm env, fall back to 8 (LUMI standard)
-    local_gpu_count = distributed.env_int(
-        "LOCAL_WORLD_SIZE",
-        distributed.env_int("SLURM_GPUS_PER_NODE", 8),
-    )
-    local_device_ids = list(range(local_gpu_count))
-
-    try:
-        import jax
-        jax.distributed.initialize(
-            coordinator_address=f"{master_addr}:{master_port}",
-            num_processes=world_size,
-            process_id=rank,
-            local_device_ids=local_device_ids,
-        )
-        _initialized = True
-        return True, ""
-    except Exception as exc:
-        return False, str(exc)
+from tests import allreduce_jax
 
 
 def run_ddp_step(
@@ -57,13 +15,11 @@ def run_ddp_step(
     try:
         import jax
         import jax.numpy as jnp
-        import jax.lax as lax
-        from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
-        from jax.experimental.shard_map import shard_map
-    except ImportError as e:
-        return {"error": f"jax not available: {e}"}
+    except ImportError:
+        return {"error": "jax not available"}
 
-    ok, err = _init_distributed()
+    # Reuse the working distributed init: 1 GPU per process, local_device_ids=[0]
+    ok, err = allreduce_jax._init_distributed()
     if not ok:
         return {"error": f"distributed init failed: {err}"}
 
@@ -74,33 +30,19 @@ def run_ddp_step(
 
     dtype = getattr(jnp, dtype_name, jnp.bfloat16)
 
-    # 1D global mesh — all devices across all processes
-    mesh = Mesh(np.array(jax.devices()), axis_names=("batch",))
-    replicated = NamedSharding(mesh, P())
-    sharded = NamedSharding(mesh, P("batch"))
-
-    # shard_map: each device runs local forward+backward; pmean allreduces grads
-    @partial(shard_map, mesh=mesh, in_specs=(P(), P("batch")), out_specs=P())
-    def compute_grads(w, x_shard):
-        def loss_fn(w):
-            return jnp.sum(jnp.dot(x_shard, w))
-        _, grads = jax.value_and_grad(loss_fn)(w)
-        return lax.pmean(grads, "batch")
-
-    @jax.jit
+    @partial(jax.pmap, axis_name="devices")
     def step_fn(w, x):
-        grads = compute_grads(w, x)
+        def loss_fn(w):
+            return jnp.sum(jnp.dot(x, w))
+        _, grads = jax.value_and_grad(loss_fn)(w)
+        grads = jax.lax.pmean(grads, axis_name="devices")
         return w - jnp.array(1e-3, dtype=dtype) * grads
 
-    # Each process provides its local portion of the global arrays
-    w = jax.make_array_from_process_local_data(
-        replicated,
-        jnp.ones((input_size, output_size), dtype=dtype),
-    )
-    local_x = jnp.ones((n_local * batch_size, input_size), dtype=dtype)
-    x = jax.make_array_from_process_local_data(sharded, local_x)
+    # Each process contributes n_local (=1) device slices
+    w = jnp.ones((n_local, input_size, output_size), dtype=dtype)
+    x = jnp.ones((n_local, batch_size, input_size), dtype=dtype)
 
-    # Trigger compilation
+    # Trigger compilation + clique init
     w = step_fn(w, x)
     jax.block_until_ready(w)
 
