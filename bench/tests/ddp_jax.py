@@ -1,9 +1,6 @@
 import functools
 import time
 
-from tests import allreduce_jax
-from common import stats
-
 
 def run_ddp_step(
     batch_size=64,
@@ -19,12 +16,10 @@ def run_ddp_step(
     except ImportError:
         return {"error": "jax not available"}
 
-    ok, err = allreduce_jax._init_distributed()
-    if not ok:
-        return {"error": f"distributed init failed: {err}"}
-
     n_local = len(jax.local_devices())
-    world_size = len(jax.devices())
+    if n_local < 2:
+        return {"error": f"need at least 2 local devices, got {n_local}"}
+
     dtype = getattr(jnp, dtype_name, jnp.bfloat16)
 
     def loss_fn(w, x):
@@ -42,7 +37,6 @@ def run_ddp_step(
     w = jnp.ones((n_local, input_size, output_size), dtype=dtype)
     x = jnp.ones((n_local, batch_size, input_size), dtype=dtype)
 
-    # trigger compilation
     step_fn(w, x)[0].block_until_ready()
 
     def _step():
@@ -66,7 +60,7 @@ def run_ddp_step(
     p95 = step_times_sorted[int(0.95 * (len(step_times_sorted) - 1))]
     avg = sum(step_times) / len(step_times)
 
-    global_batch = batch_size * world_size
+    global_batch = batch_size * n_local
     samples_per_sec = (global_batch / (avg / 1000.0)) if avg > 0 else 0.0
 
     return {
@@ -74,7 +68,7 @@ def run_ddp_step(
         "input_size": input_size,
         "output_size": output_size,
         "dtype": dtype_name,
-        "world_size": world_size,
+        "world_size": n_local,
         "step_time_ms_avg": avg,
         "step_time_ms_p50": p50,
         "step_time_ms_p95": p95,
