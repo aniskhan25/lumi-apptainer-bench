@@ -42,19 +42,32 @@ def run_ddp_step(
     w = jnp.ones((n_local, input_size, output_size), dtype=dtype)
     x = jnp.ones((n_local, batch_size, input_size), dtype=dtype)
 
-    # Trigger compilation + clique init
-    w = step_fn(w, x)
-    jax.block_until_ready(w)
+    # Dummy allreduce used as a cross-process barrier after each step.
+    # block_until_ready(w) only waits for local device; the pmap pmean
+    # collective may still be in-flight. A subsequent psum of a scalar
+    # forces all processes to sync before the host timer stops.
+    barrier_fn = jax.pmap(
+        lambda _: jax.lax.psum(jnp.ones((), dtype=jnp.int32), axis_name="devices"),
+        axis_name="devices",
+    )
+    barrier_in = jnp.ones((n_local,), dtype=jnp.int32)
+
+    def step_and_sync():
+        nonlocal w
+        w = step_fn(w, x)
+        jax.block_until_ready(w)
+        barrier_fn(barrier_in).block_until_ready()
+
+    # Trigger compilation
+    step_and_sync()
 
     for _ in range(max(warmup, 0)):
-        w = step_fn(w, x)
-    jax.block_until_ready(w)
+        step_and_sync()
 
     step_times = []
     for _ in range(max(iters, 1)):
         start = time.perf_counter()
-        w = step_fn(w, x)
-        jax.block_until_ready(w)
+        step_and_sync()
         end = time.perf_counter()
         step_times.append((end - start) * 1000.0)
 
