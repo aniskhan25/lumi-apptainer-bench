@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
-from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax, gemm_torch, gemm_jax, kernel_mix
+from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax, ddp_jax_multi, gemm_torch, gemm_jax, kernel_mix
 
 
 DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
@@ -276,6 +276,24 @@ def cmd_jax_multi(args):
     return 0
 
 
+def cmd_jax_ddp_multi(args):
+    result = ddp_jax_multi.run_ddp_step(
+        batch_size=args.batch_size,
+        input_size=args.input_size,
+        output_size=args.output_size,
+        warmup=args.warmup,
+        iters=args.iters,
+        dtype_name=args.dtype,
+    )
+    warnings = []
+    warning = _warning_from_error("jax-ddp-multi", result)
+    if warning:
+        warnings.append(warning)
+    if _is_rank0():
+        _write_results(args.out, {"jax_ddp_multi_step": result}, warnings)
+    return 0 if "error" not in result else 1
+
+
 def cmd_jax_ddp(args):
     result = ddp_jax.run_ddp_step(
         batch_size=args.batch_size,
@@ -376,6 +394,16 @@ def build_parser():
     jax_ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
     jax_ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
     jax_ddp.set_defaults(func=cmd_jax_ddp)
+
+    jax_ddp_multi = subparsers.add_parser("jax-ddp-multi", help="JAX multi-node DDP via jax.sharding mesh")
+    jax_ddp_multi.add_argument("--out", required=True)
+    jax_ddp_multi.add_argument("--batch-size", type=int, default=int(_env("BENCH_DDP_BATCH", "64")))
+    jax_ddp_multi.add_argument("--input-size", type=int, default=int(_env("BENCH_DDP_INPUT", "4096")))
+    jax_ddp_multi.add_argument("--output-size", type=int, default=int(_env("BENCH_DDP_OUTPUT", "4096")))
+    jax_ddp_multi.add_argument("--dtype", default=_env("BENCH_DDP_DTYPE", "bfloat16"))
+    jax_ddp_multi.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
+    jax_ddp_multi.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
+    jax_ddp_multi.set_defaults(func=cmd_jax_ddp_multi)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)
