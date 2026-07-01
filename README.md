@@ -141,6 +141,46 @@ Typical interpretation:
 - `DDP step p95 ms`: tail latency for the DDP training step
 - `Check`: sanity test for GPU visibility and writable cache paths
 
+## JAX vs PyTorch Benchmark Results
+
+Measured on LUMI MI250X (AMD Instinct, 8 GCDs per node) using 2 nodes.
+Containers: `lumi-multitorch` (May 13 build) for PyTorch; `jax-lumi.sif` (JAX 0.10.2 + jax_rocm7_plugin) for JAX.
+All DDP results verified via rank-specific gradient check (`allreduce_verified=true`).
+DDP model: N processes × 1 GPU each with `pmap` + cross-process `pmean` (same topology for both frameworks).
+
+### GEMM (bfloat16, 4096×4096, single GPU)
+
+| | TFLOPS | p50 ms |
+|--|--------|--------|
+| PyTorch | 103.3 | 1.33 |
+| JAX | 120.6 | 1.14 |
+
+JAX +17%. XLA JIT produces tighter kernels for square matrix multiply.
+
+### Allreduce (2-node, 16 GPU, Slingshot)
+
+| Size | PyTorch GB/s | JAX GB/s |
+|------|-------------|---------|
+| 1 KB | 0.013 | 0.004 |
+| 64 KB | 0.265 | 0.266 |
+| 256 KB | 2.273 | 0.952 |
+| 1 MB | 5.097 | 3.006 |
+
+PyTorch/RCCL is faster at raw collective bandwidth. Both converge around 64 KB.
+
+### DDP Step (batch 64, 4096×4096 weight, bfloat16)
+
+| Config | PyTorch samp/s | PyTorch ms | JAX samp/s | JAX ms |
+|--------|---------------|-----------|-----------|--------|
+| 1-node, 8 GPU | 194,000 | 2.64 | **482,000** | **1.06** |
+| 2-node, 16 GPU | 307,000 | 3.34 | **589,000** | **1.74** |
+
+JAX +149% on single-node, +92% on two-node.
+Adding a second node costs JAX +0.68 ms (Slingshot allreduce overhead); PyTorch +0.70 ms.
+
+**Why JAX wins on DDP despite losing standalone allreduce:**
+XLA compiles the full training step — forward, backward, allreduce, weight update — as one fused program. It can overlap the collective with computation and eliminate intermediate copies. PyTorch treats computation and communication as separate operations and cannot fuse across that boundary.
+
 ## Comparison Methodology
 This repo is for fair container assessment, not maximum one-off tuning.
 
