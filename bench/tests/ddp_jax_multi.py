@@ -1,6 +1,7 @@
 import time
-from functools import partial
+import functools
 
+import numpy as np
 from tests import allreduce_jax
 
 
@@ -15,50 +16,64 @@ def run_ddp_step(
     try:
         import jax
         import jax.numpy as jnp
+        from jax.experimental.shard_map import shard_map
+        from jax.sharding import Mesh, NamedSharding, PartitionSpec as P
     except ImportError:
         return {"error": "jax not available"}
 
-    # Reuse the working distributed init: 1 GPU per process, local_device_ids=[0]
     ok, err = allreduce_jax._init_distributed()
     if not ok:
         return {"error": f"distributed init failed: {err}"}
 
     n_total = len(jax.devices())
-    n_local = len(jax.local_devices())
     if n_total < 2:
         return {"error": f"need at least 2 total devices, got {n_total}"}
 
     dtype = getattr(jnp, dtype_name, jnp.bfloat16)
+    local_device = jax.local_devices()[0]
 
-    @partial(jax.pmap, axis_name="devices")
-    def step_fn(w, x):
-        def loss_fn(w):
-            return jnp.sum(jnp.dot(x, w))
-        _, grads = jax.value_and_grad(loss_fn)(w)
-        grads = jax.lax.pmean(grads, axis_name="devices")
-        return w - jnp.array(1e-3, dtype=dtype) * grads
+    # 1D mesh over all 16 global devices (1 per process).
+    # With 1 GPU per process, RCCL does a plain network allreduce — no GDR clique.
+    mesh = Mesh(np.array(jax.devices()), ('d',))
 
-    # Each process contributes n_local (=1) device slices
-    w = jnp.ones((n_local, input_size, output_size), dtype=dtype)
-    x = jnp.ones((n_local, batch_size, input_size), dtype=dtype)
-
-    # Dummy allreduce used as a cross-process barrier after each step.
-    # block_until_ready(w) only waits for local device; the pmap pmean
-    # collective may still be in-flight. A subsequent psum of a scalar
-    # forces all processes to sync before the host timer stops.
-    barrier_fn = jax.pmap(
-        lambda _: jax.lax.psum(jnp.ones((), dtype=jnp.int32), axis_name="devices"),
-        axis_name="devices",
+    # w is replicated: every device holds the full weight matrix.
+    # x is sharded: each device holds 1 batch slice.
+    @functools.partial(
+        shard_map, mesh=mesh,
+        in_specs=(P(), P('d')),
+        out_specs=P(),
     )
-    barrier_in = jnp.ones((n_local,), dtype=jnp.int32)
+    def step_fn(w, x):
+        # w: (input_size, output_size) — full weight, same on all devices
+        # x: (1, batch_size, input_size) — local data shard
+        x_local = x[0]
+        _, grads = jax.value_and_grad(
+            lambda w: jnp.sum(jnp.dot(x_local, w))
+        )(w)
+        avg_grads = jax.lax.pmean(grads, 'd')  # real cross-process allreduce
+        return w - jnp.array(1e-3, dtype=dtype) * avg_grads
+
+    # Build global arrays. w replicated, x sharded along the device axis.
+    local_w = jax.device_put(jnp.ones((input_size, output_size), dtype=dtype), local_device)
+    local_x = jax.device_put(jnp.ones((1, batch_size, input_size), dtype=dtype), local_device)
+
+    w = jax.make_array_from_single_device_arrays(
+        (input_size, output_size),
+        NamedSharding(mesh, P()),
+        [local_w],
+    )
+    x = jax.make_array_from_single_device_arrays(
+        (n_total, batch_size, input_size),
+        NamedSharding(mesh, P('d')),
+        [local_x],
+    )
 
     def step_and_sync():
         nonlocal w
         w = step_fn(w, x)
         jax.block_until_ready(w)
-        barrier_fn(barrier_in).block_until_ready()
 
-    # Trigger compilation
+    # Trigger compilation.
     step_and_sync()
 
     for _ in range(max(warmup, 0)):
@@ -68,8 +83,7 @@ def run_ddp_step(
     for _ in range(max(iters, 1)):
         start = time.perf_counter()
         step_and_sync()
-        end = time.perf_counter()
-        step_times.append((end - start) * 1000.0)
+        step_times.append((time.perf_counter() - start) * 1000.0)
 
     step_times_sorted = sorted(step_times)
     mid = len(step_times_sorted) // 2
