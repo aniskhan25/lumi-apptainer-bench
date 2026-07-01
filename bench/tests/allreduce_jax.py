@@ -31,7 +31,7 @@ def _init_distributed():
             coordinator_address=f"{master_addr}:{master_port}",
             num_processes=world_size,
             process_id=rank,
-            local_device_ids=[local_rank],
+            local_device_ids=[0],
         )
         _initialized = True
         return True, ""
