@@ -82,33 +82,25 @@ DDP model: N processes × 1 GPU each with `pmap` + cross-process `pmean` (same t
 
 ### GEMM (bfloat16, 4096×4096, single GPU)
 
-| | TFLOPS | p50 ms |
-|--|--------|--------|
-| PyTorch | 103.3 | 1.33 |
-| JAX | 120.6 | 1.14 |
-
-JAX +17%. XLA JIT produces tighter kernels for square matrix multiply.
+| | PyTorch | JAX | Δ |
+|--|---------|-----|---|
+| TFLOPS | 103.3 | 120.6 | **+17%** |
+| p50 ms | 1.33 | 1.14 | **-14%** |
 
 ### Allreduce (2-node, 16 GPU, Slingshot)
 
-| Size | PyTorch GB/s | JAX GB/s |
-|------|-------------|---------|
-| 1 KB | 0.013 | 0.004 |
-| 64 KB | 0.265 | 0.266 |
-| 256 KB | 2.273 | 0.952 |
-| 1 MB | 5.097 | 3.006 |
-
-PyTorch/RCCL is faster at raw collective bandwidth. Both converge around 64 KB.
+| Size | PyTorch GB/s | JAX GB/s | Δ |
+|------|-------------|---------|---|
+| 1 KB | 0.013 | 0.004 | -69% |
+| 64 KB | 0.265 | 0.266 | 0% |
+| 256 KB | 2.273 | 0.952 | -58% |
+| 1 MB | 5.097 | 3.006 | **-41%** |
 
 ### DDP Step (batch 64, 4096×4096 weight, bfloat16)
 
-| Config | PyTorch samp/s | PyTorch ms | JAX samp/s | JAX ms |
-|--------|---------------|-----------|-----------|--------|
-| 1-node, 8 GPU | 194,000 | 2.64 | **482,000** | **1.06** |
-| 2-node, 16 GPU | 307,000 | 3.34 | **589,000** | **1.74** |
+| Config | PyTorch samp/s | PyTorch ms | JAX samp/s | JAX ms | Δ samp/s |
+|--------|---------------|-----------|-----------|--------|---------|
+| 1-node, 8 GPU | 194,000 | 2.64 | 482,000 | 1.06 | **+149%** |
+| 2-node, 16 GPU | 307,000 | 3.34 | 589,000 | 1.74 | **+92%** |
 
-JAX +149% on single-node, +92% on two-node.
-Adding a second node costs JAX +0.68 ms (Slingshot allreduce overhead); PyTorch +0.70 ms.
-
-**Why JAX wins on DDP despite losing standalone allreduce:**
-XLA compiles the full training step — forward, backward, allreduce, weight update — as one fused program. It can overlap the collective with computation and eliminate intermediate copies. PyTorch treats computation and communication as separate operations and cannot fuse across that boundary.
+JAX is faster at raw compute (+17% GEMM) and dominates end-to-end DDP (+149% single-node, +92% two-node), but loses on standalone allreduce bandwidth (-41% at 1 MB). XLA compiles the full training step — forward, backward, allreduce, and weight update — as one fused program, allowing it to overlap communication with computation. PyTorch treats the two as separate operations and cannot fuse across that boundary, which explains why JAX wins on DDP despite losing the isolated collective benchmark.
