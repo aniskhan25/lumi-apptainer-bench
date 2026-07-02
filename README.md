@@ -87,7 +87,7 @@ DDP model: N processes × 1 GPU each with `pmap` + cross-process `pmean` (same t
 | TFLOPS | 103.3 | 120.6 | **+17%** |
 | p50 ms | 1.33 | 1.14 | **-14%** |
 
-### Allreduce (2-node, 16 GPU, Slingshot)
+### Allreduce (2-node, 16 GPU, cross-node)
 
 | Size | PyTorch GB/s | JAX GB/s | Δ |
 |------|-------------|---------|---|
