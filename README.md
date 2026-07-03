@@ -54,7 +54,7 @@ export NODES=2
 
 ### Allreduce (2-node, cross-node)
 
-Two differences make these numbers hard to compare directly. First, LUMI ran with 2 nodes × 8 GPUs = 16 total ranks; Roihu ran with 2 nodes × 4 GPUs = 8 total ranks. Ring-allreduce traffic per rank scales with `(N-1)/N × message_size`, so 16-rank and 8-rank runs are not measuring the same operation at the same message size. Second, the interconnects are different technologies: LUMI uses HPE Slingshot (200 Gb/s), Roihu uses InfiniBand NDR (4×200 Gb/s). What the table shows is what each system achieved on its own 2-node run, not a network speed comparison.
+Two differences make these numbers hard to compare directly. First, both systems have 4 physical GPU packages per node, but MI250X exposes 2 GCDs each, so LUMI presents 8 ranks per node (16 total across 2 nodes) while Roihu's GH200 present 4 ranks per node (8 total). Ring-allreduce traffic per rank scales with `(N-1)/N × message_size`, so 16-rank and 8-rank runs are not measuring the same operation at the same message size. Second, the interconnects are different: LUMI uses HPE Slingshot (200 Gb/s), Roihu uses InfiniBand NDR (4×200 Gb/s). What the table shows is what each system achieved on its own 2-node run, not a network speed comparison.
 
 | Size | LUMI JAX GB/s | Roihu JAX GB/s |
 |------|--------------|---------------|
@@ -70,4 +70,4 @@ Two differences make these numbers hard to compare directly. First, LUMI ran wit
 | 1-node | 482,000 | 1.06 | 679,000 | 0.38 |
 | 2-node | 589,000 | 1.74 | 558,000 | 0.92 |
 
-Samples/s is `(GPUs × 64) / step_time`, so it reflects both speed and GPU count. Roihu's 2-node step is faster (0.92ms vs 1.74ms) but processes half the samples per step (8 GPUs × 64 = 512) compared to LUMI (16 GPUs × 64 = 1024), which is why the aggregate throughput ends up similar despite the faster per-step time. The step time is the more meaningful comparison here: Roihu GH200 is ~4.4× faster on GEMM and ~2.8× faster per step on single-node DDP. The 2-node step time degrades more sharply on Roihu relative to 1-node (0.38→0.92ms, +142%) than on LUMI (1.06→1.74ms, +64%), suggesting cross-node allreduce overhead is proportionally larger on Roihu given its much faster local compute.
+Samples/s is `(ranks × 64) / step_time`, so it reflects both speed and rank count. Roihu's 2-node step is faster (0.92ms vs 1.74ms) but processes half the samples per step (8 GH200 ranks × 64 = 512) compared to LUMI (16 GCD ranks × 64 = 1024), which is why the aggregate throughput ends up similar despite the faster per-step time. The step time is the more meaningful comparison here: Roihu GH200 is ~4.4× faster on GEMM and ~2.8× faster per step on single-node DDP. The 2-node step time degrades more sharply on Roihu relative to 1-node (0.38→0.92ms, +142%) than on LUMI (1.06→1.74ms, +64%), suggesting cross-node allreduce overhead is proportionally larger on Roihu given its much faster local compute.
