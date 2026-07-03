@@ -1,0 +1,142 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# Wrapper templates must set these before calling roihu_init:
+# CONTAINER_IMAGE, NODES, NTASKS_PER_NODE, GPUS_PER_NODE, CPUS_PER_TASK, TIME_LIMIT.
+require_template_config() {
+  : "${CONTAINER_IMAGE:?container image path required}"
+  : "${NODES:?set NODES before calling roihu_init}"
+  : "${NTASKS_PER_NODE:?set NTASKS_PER_NODE before calling roihu_init}"
+  : "${GPUS_PER_NODE:?set GPUS_PER_NODE before calling roihu_init}"
+  : "${CPUS_PER_TASK:?set CPUS_PER_TASK before calling roihu_init}"
+  : "${TIME_LIMIT:?set TIME_LIMIT before calling roihu_init}"
+}
+
+resolve_apptainer_cmd() {
+  APPTAINER_CMD="${APPTAINER_CMD:-apptainer}"
+  if command -v "${APPTAINER_CMD}" >/dev/null 2>&1; then
+    return
+  fi
+  if command -v singularity >/dev/null 2>&1; then
+    APPTAINER_CMD="singularity"
+    return
+  fi
+  echo "Apptainer/Singularity not found in PATH." >&2
+  exit 1
+}
+
+roihu_init() {
+  require_template_config
+  PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_462000131)}"
+  PARTITION="${PARTITION:-gpu}"
+  ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
+
+  SCRATCH_ROOT="/scratch/${PROJECT_NAME}"
+  CACHE_ROOT="${CACHE_ROOT:-${SCRATCH_ROOT}/${USER}/bench_cache}"
+  RESULTS_ROOT="${RESULTS_ROOT:-${SCRATCH_ROOT}/${USER}/bench_results}"
+
+  # csc-common-bind handles all required filesystem mounts on CSC systems
+  BIND_ARGS=(--bind "$(csc-common-bind)")
+
+  module purge
+  module load python-jax
+  resolve_apptainer_cmd
+
+  MPI_MODE="${MPI_MODE:-host}"
+  SRUN_MPI_FLAG=()
+  if [[ "${MPI_MODE}" == "container" ]]; then
+    SRUN_MPI_FLAG=(--mpi=pmi2)
+  fi
+
+  DIST="${DIST:-block}"
+  CPU_BIND="${CPU_BIND:-cores}"
+  RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
+  RESULTS_DIR="${RESULTS_ROOT}/${RUN_ID}"
+  RESULTS_JSON="${RESULTS_DIR}/results.json"
+  LOG_DIR="${RESULTS_DIR}/logs"
+
+  mkdir -p "${CACHE_ROOT}" "${RESULTS_DIR}" "${LOG_DIR}"
+
+  export TORCH_HOME="${TORCH_HOME:-${SCRATCH_ROOT}/${USER}/torch_home}"
+  mkdir -p "${TORCH_HOME}"
+
+  export BENCH_CONTAINER_IMAGE="${CONTAINER_IMAGE}"
+  export BENCH_RESULTS_DIR="${RESULTS_DIR}"
+  export BENCH_CACHE_ROOT="${CACHE_ROOT}"
+  export BENCH_PARTITION="${PARTITION}"
+  export BENCH_ACCOUNT="${ACCOUNT}"
+  export BENCH_MPI_MODE="${MPI_MODE}"
+  export BENCH_NODES="${NODES}"
+  export BENCH_NTASKS_PER_NODE="${NTASKS_PER_NODE}"
+  export BENCH_GPUS_PER_NODE="${GPUS_PER_NODE}"
+  export BENCH_CPUS_PER_TASK="${CPUS_PER_TASK}"
+  export BENCH_DIST="${DIST}"
+  export BENCH_CPU_BIND="${CPU_BIND}"
+
+  GPU_WRAPPER=()
+  if [[ "${USE_CUDA_VISIBLE_DEVICES:-0}" == "1" ]]; then
+    GPU_WRAPPER=(bash -lc 'export CUDA_VISIBLE_DEVICES=${SLURM_LOCALID}; exec "$@"' --)
+  fi
+
+  SRUN_BASE=(
+    srun
+    --partition="${PARTITION}"
+    --account="${ACCOUNT}"
+    --nodes="${NODES}"
+    --ntasks-per-node="${NTASKS_PER_NODE}"
+  )
+  if [[ "${GPUS_PER_NODE}" -gt 0 ]]; then
+    SRUN_BASE+=(--gpus-per-node="${GPUS_PER_NODE}")
+  fi
+  SRUN_BASE+=(
+    --cpus-per-task="${CPUS_PER_TASK}"
+    --distribution="${DIST}"
+    --cpu-bind="${CPU_BIND}"
+    "${SRUN_MPI_FLAG[@]}"
+    --time="${TIME_LIMIT}"
+  )
+  if [[ -n "${NODELIST:-}" ]]; then
+    SRUN_BASE+=(--nodelist="${NODELIST}")
+  fi
+  if [[ -n "${EXCLUDE_NODES:-}" ]]; then
+    SRUN_BASE+=(--exclude="${EXCLUDE_NODES}")
+  fi
+}
+
+roihu_override_bench_cmd() {
+  if [[ "$#" -eq 0 ]]; then
+    return
+  fi
+  if [[ "$1" == "--" ]]; then
+    shift
+  fi
+  if [[ "$#" -gt 0 ]]; then
+    BENCH_CMD=("$@")
+  fi
+}
+
+roihu_log_env() {
+  {
+    echo "run_id=${RUN_ID}"
+    echo "container_image=${CONTAINER_IMAGE}"
+    echo "partition=${PARTITION}"
+    echo "account=${ACCOUNT}"
+    echo "mpi_mode=${MPI_MODE}"
+    echo "nodes=${NODES}"
+    echo "ntasks_per_node=${NTASKS_PER_NODE}"
+    echo "gpus_per_node=${GPUS_PER_NODE}"
+    echo "cpus_per_task=${CPUS_PER_TASK}"
+    echo "distribution=${DIST}"
+    echo "cpu_bind=${CPU_BIND}"
+    echo "time_limit=${TIME_LIMIT}"
+    echo "bench_cmd=${BENCH_CMD[*]}"
+    srun --version || true
+  } | tee "${LOG_DIR}/run_env.txt"
+}
+
+roihu_exec() {
+  "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \
+    "${APPTAINER_CMD}" exec "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
+    "${BENCH_CMD[@]}"
+}
