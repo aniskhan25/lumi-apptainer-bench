@@ -6,6 +6,17 @@ JAX benchmarks on Roihu (NVIDIA GH200), with PyTorch numbers from LUMI for refer
 
 Roihu GPU nodes: NVIDIA GH200 Grace Hopper superchips, 4 per node (96 GiB HBM3 each), 72 ARM cores per GPU, InfiniBand NDR 4×200 Gb/s inter-node.
 
+## Setup
+
+Clone the repo to your scratch directory on Roihu:
+
+```bash
+cd /scratch/project_2014553/$USER
+git clone https://github.com/aniskhan25/lumi-apptainer-bench.git
+git checkout feature/roihu-benchmarks
+cd lumi-apptainer-bench
+```
+
 ## Prerequisites
 
 JAX 0.10.2 is preinstalled on Roihu as a TYKKY module. Loading it sets `$SIF` and `APPTAINER_NV=true`:
@@ -41,6 +52,39 @@ Two-node DDP (8 processes × 1 GPU, allreduce verified):
 ```bash
 export NODES=2
 ./templates/roihu_multi.sh -- bench/run jax-ddp-multi --out results/roihu_jax_ddp_multi.json
+```
+
+## Changing parameters
+
+**Slurm / topology** — set before calling the template:
+
+```bash
+export NODES=4              # number of nodes (default: 1 for single, 2 for multi)
+export GPUS_PER_NODE=4      # GPUs per node (default: 4)
+export TIME_LIMIT=01:00:00  # wall time (default: 00:30:00)
+export PARTITION=gpumedium  # partition (default: gputest for single, gpumedium for multi)
+```
+
+**Allreduce message sizes** — comma-separated bytes, passed after `--`:
+
+```bash
+./templates/roihu_multi.sh -- bench/run jax-multi \
+  --message-sizes 1048576,67108864,268435456 \
+  --out results/custom.json
+```
+
+**DDP batch and model size**:
+
+```bash
+./templates/roihu_single.sh -- bench/run jax-ddp \
+  --batch-size 128 --input-size 8192 --output-size 8192 \
+  --out results/custom.json
+```
+
+**Iteration count** (applies to all subcommands):
+
+```bash
+... bench/run jax-multi --iters 20 --out results/custom.json
 ```
 
 ## Results
