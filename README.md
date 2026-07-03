@@ -3,20 +3,30 @@
 This branch ports the JAX benchmarks from `feature/jax-benchmarks` (LUMI MI250X) to Roihu (NVIDIA GH200).
 PyTorch comparison numbers are taken from the LUMI run (main branch) — nothing here re-collects them.
 
+## System
+
+Roihu GPU nodes: NVIDIA GH200 Grace Hopper superchips, 4 per node (96 GiB HBM3 each), 72 ARM cores per GPU, InfiniBand NDR 4×200 Gb/s inter-node.
+
 ## Prerequisites
 
-JAX 0.10.2 is preinstalled on Roihu via a TYKKY module. After loading it, `python3` transparently runs inside the JAX container — no `apptainer exec` needed:
+JAX 0.10.2 is preinstalled on Roihu as a TYKKY module. Loading it sets `$SIF` and `APPTAINER_NV=true`:
+
+```bash
+module load python-jax
+apptainer exec --bind="$(csc-common-bind)" $SIF python3 ...
+```
+
+`csc-common-bind` is at `/appl/soft/manual/general/aarch64/csc-tools/bin/csc-common-bind`.
+Lmod is not active in batch shells by default — source it first:
 
 ```bash
 source /usr/share/lmod/lmod/init/bash
-export MODULEPATH=/appl/modulefiles/manual/aida/aarch64:/appl/modulefiles/manual/general/aarch64
+export MODULEPATH=/appl/modulefiles/manual/aida/aarch64
 module load python-jax
-python3 -c "import jax; print(jax.devices())"
 ```
 
 ## Run JAX Benchmarks on Roihu
 
-Set the project before running:
 ```bash
 export PROJECT_NAME=project_2014553
 ```
@@ -32,45 +42,44 @@ export NODES=2
 ./templates/roihu_multi.sh -- bench/run jax-multi --out results/roihu_jax_multi_2n.json
 ```
 
-Single-node DDP (allreduce verified):
+Single-node DDP (4 processes × 1 GPU, allreduce verified):
 ```bash
 ./templates/roihu_single.sh -- bench/run jax-ddp --out results/roihu_jax_ddp.json
 ```
 
-Two-node DDP (allreduce verified):
+Two-node DDP (8 processes × 1 GPU, allreduce verified):
 ```bash
 export NODES=2
 ./templates/roihu_multi.sh -- bench/run jax-ddp-multi --out results/roihu_jax_ddp_multi.json
 ```
 
-For the full suite in a single Slurm job, use the batch script at
-`/scratch/project_2014553/anisrahm/bench_results/jax_bench_roihu.sh`.
+Full suite in one job: `sbatch /scratch/project_2014553/anisrahm/bench_results/jax_bench_roihu.sh`
 
 ## Results
 
-To be filled in after runs on Roihu (NVIDIA GH200, 4 GPUs per node).
+### GEMM (bfloat16, 4096×4096, single GPU)
 
-LUMI MI250X results are shown below for reference.
+| | LUMI MI250X | Roihu GH200 |
+|--|------------|------------|
+| TFLOPS | 120.6 | 530.9 |
+| p50 ms | 1.14 | 0.26 |
 
-### GEMM (bfloat16, 4096×4096, single GPU) — LUMI MI250X reference
+### Allreduce (2-node, cross-node)
 
-| | PyTorch | JAX | Δ |
-|--|---------|-----|---|
-| TFLOPS | 103.3 | 120.6 | **+17%** |
-| p50 ms | 1.33 | 1.14 | **-14%** |
+LUMI uses 16 GPUs (Slingshot); Roihu uses 8 GPUs (InfiniBand NDR). Not directly comparable.
 
-### Allreduce (2-node, 16 GPU, cross-node) — LUMI MI250X reference
+| Size | LUMI JAX GB/s | Roihu JAX GB/s |
+|------|--------------|---------------|
+| 1 KB | 0.004 | 0.005 |
+| 64 KB | 0.266 | 0.128 |
+| 256 KB | 0.952 | 1.044 |
+| 1 MB | 3.006 | 3.714 |
 
-| Size | PyTorch GB/s | JAX GB/s | Δ |
-|------|-------------|---------|---|
-| 1 KB | 0.013 | 0.004 | -69% |
-| 64 KB | 0.265 | 0.266 | 0% |
-| 256 KB | 2.273 | 0.952 | -58% |
-| 1 MB | 5.097 | 3.006 | **-41%** |
+### DDP Step (batch 64, 4096×4096 weight, bfloat16, allreduce verified)
 
-### DDP Step (batch 64, 4096×4096 weight, bfloat16) — LUMI MI250X reference
+| Config | LUMI JAX samp/s | LUMI JAX ms | Roihu JAX samp/s | Roihu JAX ms |
+|--------|----------------|------------|-----------------|-------------|
+| 1-node | 482,000 | 1.06 | 679,000 | 0.38 |
+| 2-node | 589,000 | 1.74 | 558,000 | 0.92 |
 
-| Config | PyTorch samp/s | PyTorch ms | JAX samp/s | JAX ms | Δ samp/s |
-|--------|---------------|-----------|-----------|--------|---------|
-| 1-node, 8 GPU | 194,000 | 2.64 | 482,000 | 1.06 | **+149%** |
-| 2-node, 16 GPU | 307,000 | 3.34 | 589,000 | 1.74 | **+92%** |
+Roihu GH200 is ~4.4× faster on GEMM and ~41% faster on single-node DDP. The 2-node DDP step time increases more than on LUMI relative to 1-node (0.38→0.92ms vs 1.06→1.74ms), suggesting cross-node allreduce overhead is proportionally larger on Roihu given its much faster local compute.
