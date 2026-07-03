@@ -22,11 +22,14 @@ roihu_init() {
   CACHE_ROOT="${CACHE_ROOT:-${SCRATCH_ROOT}/${USER}/bench_cache}"
   RESULTS_ROOT="${RESULTS_ROOT:-${SCRATCH_ROOT}/${USER}/bench_results}"
 
-  # Initialize Lmod and load the JAX module.
-  # This sets PATH to the TYKKY wrapper bin and exports $SIF + APPTAINER_NV=true.
+  # Lmod is not active in non-login shells; source the init script explicitly.
   source /usr/share/lmod/lmod/init/bash
-  export MODULEPATH=/appl/modulefiles/manual/aida/aarch64:/appl/modulefiles/manual/general/aarch64
-  module load python-jax
+  export MODULEPATH=/appl/modulefiles/manual/general/aarch64:/appl/modulefiles/manual/aida/aarch64
+
+  # csc-tools adds csc-common-bind to PATH; python-jax sets $SIF and APPTAINER_NV=true.
+  module load csc-tools python-jax
+
+  CSC_BIND=$(csc-common-bind)
 
   DIST="${DIST:-block}"
   CPU_BIND="${CPU_BIND:-cores}"
@@ -87,13 +90,15 @@ roihu_log_env() {
     echo "distribution=${DIST}"
     echo "cpu_bind=${CPU_BIND}"
     echo "time_limit=${TIME_LIMIT}"
-    echo "jax_sif=${SIF:-}"
+    echo "jax_sif=${SIF}"
+    echo "csc_bind=${CSC_BIND}"
     echo "bench_cmd=${BENCH_CMD[*]}"
     srun --version || true
   } | tee "${LOG_DIR}/run_env.txt"
 }
 
-# python3 resolves to the TYKKY wrapper which handles the container internally.
 roihu_exec() {
-  "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" python3 "${BENCH_CMD[@]}"
+  "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \
+    apptainer exec --bind="${CSC_BIND}" "${SIF}" \
+    python3 "${BENCH_CMD[@]}"
 }
