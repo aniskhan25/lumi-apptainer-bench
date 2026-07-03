@@ -1,7 +1,6 @@
 # JAX Benchmarks on Roihu
 
-This branch ports the JAX benchmarks from `feature/jax-benchmarks` (LUMI MI250X) to Roihu (NVIDIA GH200).
-PyTorch comparison numbers are taken from the LUMI run (main branch) — nothing here re-collects them.
+JAX benchmarks on Roihu (NVIDIA GH200), with PyTorch numbers from LUMI for reference.
 
 ## System
 
