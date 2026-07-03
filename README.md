@@ -130,13 +130,25 @@ Interconnects: LUMI uses HPE Slingshot (200 Gb/s); Roihu uses InfiniBand NDR (80
 
 Roihu leads up to 16 MB, then LUMI takes over despite having 4× less interconnect bandwidth. The reason is node count: LUMI's 16 ranks fit on 2 nodes, so only 1 of the 15 ring steps crosses the network — the rest are intra-node over XGMI. Roihu needs 4 nodes, so 4 ring steps cross InfiniBand every pass. At large messages, fewer network hops matters more than faster links.
 
-### DDP Step (batch 64 per rank, 4096×4096 weight, bfloat16, allreduce verified)
+### DDP Step (4096×4096 weight, bfloat16, allreduce verified)
+
+**samp/s = ranks × batch / step_time**, so it reflects both step speed and rank count. Since Roihu has half the ranks per node, ms is the fairer metric to compare step efficiency.
+
+**Single batch size (batch=64 per rank):**
 
 | Config | LUMI ranks | LUMI samp/s | LUMI ms | Roihu ranks | Roihu samp/s | Roihu ms |
 |--------|-----------|------------|--------|------------|-------------|--------|
 | 1-node | 8 | 482,000 | 1.06 | 4 | 679,000 | 0.38 |
 | 2-node | 16 | 589,000 | 1.74 | 8 | 558,000 | 0.92 |
 
-**samp/s = ranks × 64 / step_time.** Roihu's 2-node step is faster (0.92 vs 1.74ms) but runs fewer ranks (8 vs 16), so it processes half as many samples per step — that is why LUMI shows higher throughput despite the slower step time.
+On 1-node, Roihu is 2.8× faster per step. Scaling to 2 nodes costs more on Roihu (+0.54ms, +142%) than LUMI (+0.68ms, +64%) — at batch=64 the step is short enough that the cross-node allreduce is the dominant cost on both systems.
 
-**ms is the fairer metric.** On 1-node, Roihu is 2.8× faster per step. Scaling to 2 nodes adds 0.54ms on Roihu (+142%) vs 0.68ms on LUMI (+64%): the cross-node allreduce hits Roihu harder because its local compute is so much faster that communication becomes the bottleneck sooner.
+**Batch size sweep (2-node):**
+
+| Batch per rank | LUMI ms | Roihu ms | Roihu advantage |
+|---------------|--------|---------|----------------|
+| 64 | 1.74 | 0.92 | 1.9× |
+| 256 | 1.78 | 0.87 | 2.0× |
+| 1024 | 1.94 | 0.88 | 2.2× |
+
+Roihu's step time is flat across batch sizes — it is allreduce-bound and compute finishes faster than the network sync. LUMI's step time grows because its slower MI250X compute starts adding measurable time at larger batches. As a result, Roihu's advantage increases with batch size: the faster GH200 compute keeps communication the bottleneck, while LUMI shifts toward compute-bound at larger batches.
