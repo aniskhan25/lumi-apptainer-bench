@@ -31,7 +31,7 @@ module load python-jax
 export PROJECT_NAME=project_2014553
 ```
 
-Single-node GEMM + kernel mix (uses `gputest` partition by default):
+Single-node GEMM (uses `gputest` partition by default):
 ```bash
 ./templates/roihu_single.sh -- bench/run jax-single --out results/roihu_jax_single.json
 ```
@@ -52,8 +52,6 @@ Two-node DDP (8 processes × 1 GPU, allreduce verified):
 export NODES=2
 ./templates/roihu_multi.sh -- bench/run jax-ddp-multi --out results/roihu_jax_ddp_multi.json
 ```
-
-Full suite in one job: `sbatch /scratch/project_2014553/anisrahm/bench_results/jax_bench_roihu.sh`
 
 ## Results
 

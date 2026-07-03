@@ -83,6 +83,7 @@ def run_allreduce(message_sizes, iters=5):
         results["bandwidth_gbps"].append(bandwidth)
         results["latency_us"].append(avg_time * 1.0e6)
 
-    last = allreduce_fn(x)
-    results["checksum"] = f"{float(last[0, 0]):.4f}"
+    if message_sizes:
+        last = allreduce_fn(x)
+        results["checksum"] = f"{float(last[0, 0]):.4f}"
     return results

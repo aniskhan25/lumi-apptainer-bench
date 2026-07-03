@@ -15,11 +15,10 @@ require_template_config() {
 roihu_init() {
   require_template_config
   PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_2014553)}"
-  PARTITION="${PARTITION:-gpumedium}"
+  PARTITION="${PARTITION:?set PARTITION before calling roihu_init}"
   ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
 
   SCRATCH_ROOT="/scratch/${PROJECT_NAME}"
-  CACHE_ROOT="${CACHE_ROOT:-${SCRATCH_ROOT}/${USER}/bench_cache}"
   RESULTS_ROOT="${RESULTS_ROOT:-${SCRATCH_ROOT}/${USER}/bench_results}"
 
   # Lmod is not active in non-login shells; source the init script explicitly.
@@ -32,14 +31,18 @@ roihu_init() {
   # csc-common-bind is a standalone binary; no module needed.
   CSC_BIND=$(/appl/soft/manual/general/aarch64/csc-tools/bin/csc-common-bind)
 
-  DIST="${DIST:-block}"
-  CPU_BIND="${CPU_BIND:-cores}"
   RUN_ID="${RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)}"
   RESULTS_DIR="${RESULTS_ROOT}/${RUN_ID}"
   RESULTS_JSON="${RESULTS_DIR}/results.json"
   LOG_DIR="${RESULTS_DIR}/logs"
 
-  mkdir -p "${CACHE_ROOT}" "${RESULTS_DIR}" "${LOG_DIR}"
+  mkdir -p "${RESULTS_DIR}" "${LOG_DIR}"
+
+  export BENCH_CONTAINER_IMAGE="${SIF}"
+  export BENCH_NODES="${NODES}"
+  export BENCH_NTASKS_PER_NODE="${NTASKS_PER_NODE}"
+  export BENCH_GPUS_PER_NODE="${GPUS_PER_NODE}"
+  export BENCH_RESULTS_DIR="${RESULTS_DIR}"
 
   # Per-rank GPU assignment: each srun task sees exactly one GPU.
   GPU_WRAPPER=()
@@ -55,8 +58,6 @@ roihu_init() {
     --ntasks-per-node="${NTASKS_PER_NODE}"
     --gres="gpu:gh200:${GPUS_PER_NODE}"
     --cpus-per-task="${CPUS_PER_TASK}"
-    --distribution="${DIST}"
-    --cpu-bind="${CPU_BIND}"
     --time="${TIME_LIMIT}"
   )
   if [[ -n "${NODELIST:-}" ]]; then
@@ -88,18 +89,13 @@ roihu_log_env() {
     echo "ntasks_per_node=${NTASKS_PER_NODE}"
     echo "gpus_per_node=${GPUS_PER_NODE}"
     echo "cpus_per_task=${CPUS_PER_TASK}"
-    echo "distribution=${DIST}"
-    echo "cpu_bind=${CPU_BIND}"
-    echo "time_limit=${TIME_LIMIT}"
     echo "jax_sif=${SIF}"
-    echo "csc_bind=${CSC_BIND}"
     echo "bench_cmd=${BENCH_CMD[*]}"
-    srun --version || true
   } | tee "${LOG_DIR}/run_env.txt"
 }
 
 roihu_exec() {
   "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \
     apptainer exec --bind="${CSC_BIND}" "${SIF}" \
-    python3 "${BENCH_CMD[@]}"
+    "${BENCH_CMD[@]}"
 }
