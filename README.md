@@ -67,20 +67,22 @@ The interconnects also differ: LUMI uses HPE Slingshot at 200 Gb/s; Roihu uses I
 | 256 KB | 0.952 | 1.044 |
 | 1 MB | 3.006 | 3.714 |
 
-**4-node runs (16 ranks each) — directly comparable:**
+**16-rank runs (LUMI: 2 nodes × 8 GCDs, Roihu: 4 nodes × 4 GPUs) — directly comparable:**
 
 | Size | LUMI JAX GB/s | Roihu JAX GB/s |
 |------|--------------|---------------|
-| 1 KB | — | 0.001 |
-| 64 KB | — | 0.283 |
-| 256 KB | — | 1.081 |
-| 1 MB | 3.006 | 3.803 |
-| 4 MB | — | 10.625 |
-| 16 MB | — | 25.698 |
-| 64 MB | — | 32.658 |
-| 256 MB | — | 37.469 |
+| 1 KB | 0.004 | 0.001 |
+| 4 KB | 0.017 | 0.019 |
+| 16 KB | 0.067 | 0.068 |
+| 64 KB | 0.252 | 0.283 |
+| 256 KB | 0.892 | 1.081 |
+| 1 MB | 3.054 | 3.803 |
+| 4 MB | 9.742 | 10.625 |
+| 16 MB | 23.383 | 25.698 |
+| 64 MB | 36.812 | 32.658 |
+| 256 MB | 44.786 | 37.469 |
 
-LUMI was only measured to 1 MB. At that point Roihu is already 26% faster (3.8 vs 3.0 GB/s). Beyond 1 MB bandwidth scales steadily, reaching 37.5 GB/s at 256 MB where the interconnect is fully loaded.
+Roihu leads up to 16 MB, but LUMI overtakes at 64 MB and pulls further ahead at 256 MB (44.8 vs 37.5 GB/s). This is the opposite of what the raw interconnect specs suggest (Slingshot 200 Gb/s vs InfiniBand NDR 800 Gb/s). The likely explanation is topology: LUMI uses only 2 physical nodes, so the ring has just one inter-node hop — the other 14 steps run over XGMI (intra-node NVLink equivalent). Roihu spreads 16 ranks across 4 nodes, requiring 4 inter-node hops per ring pass regardless of link speed. At large messages the hop count dominates over raw bandwidth.
 
 ### DDP Step (batch 64, 4096×4096 weight, bfloat16, allreduce verified)
 
