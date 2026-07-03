@@ -10,7 +10,7 @@ from common import env_detect, json_schema
 from tests import allreduce, allreduce_jax, check_rocm, ddp_step, ddp_jax_multi, gemm_torch, gemm_jax, kernel_mix
 
 
-DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
+DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864, 268435456]
 EMPTY_ALLREDUCE_RESULT = {
     "message_sizes_bytes": [],
     "bandwidth_gbps": [],

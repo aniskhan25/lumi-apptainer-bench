@@ -56,6 +56,8 @@ export NODES=2
 
 Two differences make these numbers hard to compare directly. First, both systems have 4 physical GPU packages per node, but MI250X exposes 2 GCDs each, so LUMI presents 8 ranks per node (16 total across 2 nodes) while Roihu's GH200 present 4 ranks per node (8 total). Ring-allreduce traffic per rank scales with `(N-1)/N × message_size`, so 16-rank and 8-rank runs are not measuring the same operation at the same message size. Second, the interconnects differ in both technology and bandwidth: LUMI uses HPE Slingshot at 200 Gb/s, Roihu uses InfiniBand NDR at 4×200 Gb/s (800 Gb/s). What the table shows is what each system achieved on its own 2-node run, not a network speed comparison.
 
+The results below are from the initial 2-node run with a 1 MB message ceiling, which is latency-dominated and does not expose Roihu's faster interconnect. The benchmark now sweeps up to 256 MB. Re-running at larger node counts (8+) and larger messages is needed to see where Roihu's 4× higher bandwidth actually shows up.
+
 | Size | LUMI JAX GB/s | Roihu JAX GB/s |
 |------|--------------|---------------|
 | 1 KB | 0.004 | 0.005 |
