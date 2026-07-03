@@ -64,7 +64,7 @@ export NODES=2
 
 ### Allreduce (2-node, cross-node)
 
-LUMI uses 16 GPUs (Slingshot); Roihu uses 8 GPUs (InfiniBand NDR). Not directly comparable.
+Two differences make these numbers hard to compare directly. First, LUMI ran with 2 nodes × 8 GPUs = 16 total ranks; Roihu ran with 2 nodes × 4 GPUs = 8 total ranks. Ring-allreduce traffic per rank scales with `(N-1)/N × message_size`, so 16-rank and 8-rank runs are not measuring the same operation at the same message size. Second, the interconnects are different technologies: LUMI uses HPE Slingshot (200 Gb/s), Roihu uses InfiniBand NDR (4×200 Gb/s). What the table shows is what each system achieved on its own 2-node run, not a network speed comparison.
 
 | Size | LUMI JAX GB/s | Roihu JAX GB/s |
 |------|--------------|---------------|
