@@ -74,9 +74,8 @@ GH200 is 4.4× faster on this single-GPU kernel.
 
 ### Allreduce (cross-node, payload GB/s = message\_size / elapsed\_time)
 
-Each MI250X exposes 2 GCDs, so LUMI has 8 ranks per node vs Roihu's 4. A 2-node LUMI run has 16 ranks; a 2-node Roihu run has 8. The 16-rank table below equalises rank count (LUMI 2 nodes, Roihu 4 nodes) but node count and topology still differ, so results reflect a combined effect of hardware, collective implementation, and rank placement.
-
 **2-node (LUMI 16 ranks, Roihu 8 ranks):**
+Each MI250X exposes 2 GCDs, so a 2-node LUMI run has 16 ranks while Roihu has 8 — different workloads, not directly comparable.
 
 | Size | LUMI GB/s | Roihu GB/s |
 |------|----------|-----------|
@@ -86,6 +85,7 @@ Each MI250X exposes 2 GCDs, so LUMI has 8 ranks per node vs Roihu's 4. A 2-node 
 | 1 MB | 3.006 | 3.714 |
 
 **16 ranks (LUMI: 2 nodes × 8 GCDs, Roihu: 4 nodes × 4 GPUs):**
+Rank count is equalised but node count and topology still differ, so results reflect a combined effect of hardware, collective implementation, and rank placement.
 
 | Size | LUMI GB/s | Roihu GB/s |
 |------|----------|-----------|
