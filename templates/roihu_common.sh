@@ -24,12 +24,13 @@ roihu_init() {
 
   # Lmod is not active in non-login shells; source the init script explicitly.
   source /usr/share/lmod/lmod/init/bash
-  export MODULEPATH=/appl/modulefiles/manual/general/aarch64:/appl/modulefiles/manual/aida/aarch64
+  export MODULEPATH=/appl/modulefiles/manual/aida/aarch64
 
-  # csc-tools adds csc-common-bind to PATH; python-jax sets $SIF and APPTAINER_NV=true.
-  module load csc-tools python-jax
+  # python-jax sets $SIF and APPTAINER_NV=true.
+  module load python-jax
 
-  CSC_BIND=$(csc-common-bind)
+  # csc-common-bind is a standalone binary; no module needed.
+  CSC_BIND=$(/appl/soft/manual/general/aarch64/csc-tools/bin/csc-common-bind)
 
   DIST="${DIST:-block}"
   CPU_BIND="${CPU_BIND:-cores}"
