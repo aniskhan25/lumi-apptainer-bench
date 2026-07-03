@@ -16,15 +16,6 @@ module load python-jax
 apptainer exec --bind="$(csc-common-bind)" $SIF python3 ...
 ```
 
-`csc-common-bind` is at `/appl/soft/manual/general/aarch64/csc-tools/bin/csc-common-bind`.
-Lmod is not active in batch shells by default — source it first:
-
-```bash
-source /usr/share/lmod/lmod/init/bash
-export MODULEPATH=/appl/modulefiles/manual/aida/aarch64
-module load python-jax
-```
-
 ## Run JAX Benchmarks on Roihu
 
 ```bash
