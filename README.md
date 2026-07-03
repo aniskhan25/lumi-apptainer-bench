@@ -104,7 +104,8 @@ Roihu leads up to ~16 MB; LUMI overtakes at larger sizes. LUMI uses fewer physic
 **samp/s** = ranks × batch / step\_time (reflects both speed and rank count).
 **ms** = per-step latency (per-replica efficiency, independent of rank count).
 
-**batch=64 per rank:**
+**batch=64 per rank — scaling from 1 to 2 nodes:**
+Roihu is 2.8× faster per step on 1-node. Adding a second node costs more on Roihu (+0.54ms, +142%) than LUMI (+0.68ms, +64%) because at this small batch size both steps are dominated by the allreduce, and Roihu's local compute is fast enough that communication is the bottleneck from the start.
 
 | Config | LUMI ranks | LUMI ms | Roihu ranks | Roihu ms |
 |--------|-----------|--------|------------|---------|
