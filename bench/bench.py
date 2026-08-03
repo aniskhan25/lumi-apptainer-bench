@@ -7,7 +7,15 @@ import subprocess
 from datetime import datetime, timezone
 
 from common import env_detect, json_schema
-from tests import allreduce, check_rocm, ddp_step, gemm_torch, kernel_mix
+from tests import (
+    allreduce,
+    alltoall,
+    check_rocm,
+    ddp_step,
+    gemm_torch,
+    kernel_mix,
+    probe,
+)
 
 
 DEFAULT_ALLREDUCE_SIZES = [1024, 4096, 16384, 65536, 262144, 1048576]
@@ -232,6 +240,61 @@ def cmd_ddp(args):
     return 0 if "error" not in result else 1
 
 
+def cmd_probe(args):
+    result = probe.run_probe()
+    warnings = []
+    allocator = result.get("allocator", {}).get("expandable_segments", {})
+    if allocator.get("supported") is False:
+        warnings.append(
+            "probe: expandable_segments unsupported -- the allocator cannot compact "
+            "fragmentation, despite what the PyTorch OOM message recommends"
+        )
+    if result.get("tmp", {}).get("node_local") is False:
+        warnings.append("probe: /tmp is not node-local; JIT caches are unsafe at scale")
+    for key, entry in result.get("cache_paths", {}).items():
+        if entry.get("on_lustre"):
+            warnings.append(f"probe: {key} is on Lustre; races at 64+ ranks")
+    if result.get("fabric", {}).get("fi_info_cxi_exit_code") not in (0, None):
+        warnings.append("probe: CXI provider not visible to fi_info")
+
+    # Every rank records its own view: whether the GPU-binding environment reached this
+    # process is a per-rank fact, and it is what separates the exec and run launch modes.
+    rank_dir = os.path.join(os.path.dirname(args.out) or ".", "probe_ranks")
+    _write_json(
+        os.path.join(rank_dir, f"rank{_rank():04d}.json"), result["visibility"]
+    )
+
+    if _is_rank0():
+        _write_results(args.out, {"probe": result}, warnings)
+    return 0
+
+
+def cmd_alltoall(args):
+    sizes = _parse_sizes(args.message_sizes) or alltoall.DEFAULT_MESSAGE_SIZES
+    result = alltoall.run_alltoall(
+        message_sizes=sizes,
+        group_size=args.group_size,
+        iters=args.iters,
+        churn_rounds=args.churn_rounds,
+    )
+    warnings = []
+    warning = _warning_from_error("alltoall", result)
+    if warning:
+        warnings.append(warning)
+    if result.get("correctness", {}).get("passed") is False:
+        warnings.append(
+            "alltoall: payload mismatch -- the exchange is wrong, so any bandwidth "
+            "figure from this run is meaningless"
+        )
+    if result.get("uneven", {}).get("passed") is False:
+        warnings.append("alltoall: uneven-split (MoE-shaped) exchange incorrect")
+    if result.get("group_churn", {}).get("passed") is False:
+        warnings.append("alltoall: repeated communicator creation failed")
+    if _is_rank0():
+        _write_results(args.out, {"alltoall": result}, warnings)
+    return 0 if result.get("passed") else 1
+
+
 def cmd_compare(args):
     compare_path = os.path.join(os.path.dirname(__file__), "compare.sh")
     cmd = [compare_path] + args.args
@@ -296,6 +359,32 @@ def build_parser():
     ddp.add_argument("--warmup", type=int, default=int(_env("BENCH_WARMUP", "3")))
     ddp.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
     ddp.set_defaults(func=cmd_ddp)
+
+    probe_cmd = subparsers.add_parser(
+        "probe", help="startup capability probe (what the job actually loaded)"
+    )
+    probe_cmd.add_argument("--out", required=True, help="Output JSON path")
+    probe_cmd.set_defaults(func=cmd_probe)
+
+    a2a = subparsers.add_parser(
+        "alltoall", help="all-to-all collective correctness and bandwidth"
+    )
+    a2a.add_argument("--out", required=True, help="Output JSON path")
+    a2a.add_argument(
+        "--group-size",
+        type=int,
+        default=int(_env("BENCH_A2A_GROUP_SIZE", "8")),
+        help="Ranks per all-to-all group; 8 stays intra-node, 16+ crosses Slingshot.",
+    )
+    a2a.add_argument("--message-sizes", default=_env("BENCH_A2A_SIZES", ""))
+    a2a.add_argument("--iters", type=int, default=int(_env("BENCH_ITERS", "10")))
+    a2a.add_argument(
+        "--churn-rounds",
+        type=int,
+        default=int(_env("BENCH_A2A_CHURN_ROUNDS", "3")),
+        help="Communicator create/destroy rounds.",
+    )
+    a2a.set_defaults(func=cmd_alltoall)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)

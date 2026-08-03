@@ -1,0 +1,70 @@
+{
+  "name": "gate1-capability-and-environment",
+  "description": "Gate 1. The job loaded what it was supposed to load, on the hardware it was supposed to run on, with caches somewhere safe.",
+  "gates": [
+    {
+      "name": "torch_present",
+      "path": ["tests", "probe", "packages", "torch", "present"],
+      "type": "must_be_true",
+      "note": "PyTorch imports at all."
+    },
+    {
+      "name": "device_arch_is_gfx90a",
+      "path": ["tests", "probe", "packages", "gcn_arch"],
+      "type": "contains",
+      "expect": "gfx90a",
+      "note": "MI250X is CDNA2/gfx90a. Several MoE kernel paths assume CDNA3 and fail here, so the arch must be recorded explicitly rather than inferred."
+    },
+    {
+      "name": "cxi_provider_visible",
+      "path": ["tests", "probe", "fabric", "fi_info_cxi_exit_code"],
+      "type": "equals",
+      "expect": 0,
+      "note": "The CXI provider carries RCCL traffic over Slingshot. If fi_info cannot see it, no RCCL tuning will help."
+    },
+    {
+      "name": "aws_ofi_nccl_recorded",
+      "path": ["tests", "probe", "fabric", "aws_ofi_nccl_version"],
+      "type": "contains",
+      "expect": ".",
+      "note": "aws-ofi-nccl is the RCCL/libfabric plugin and the only comms-stack package that changed between the April and May 2026 builds. Its version must appear in every run record."
+    },
+    {
+      "name": "tmp_is_node_local",
+      "path": ["tests", "probe", "tmp", "node_local"],
+      "type": "must_be_true",
+      "note": "Per-node /tmp is the only safe home for JIT caches at 64+ ranks."
+    },
+    {
+      "name": "triton_cache_off_lustre",
+      "path": ["tests", "probe", "cache_paths", "TRITON_CACHE_DIR", "on_lustre"],
+      "type": "must_be_false",
+      "note": "Lustre-backed Triton caches lose atomic-write races at 64+ ranks: a rank reads a partial entry, raises JSONDecodeError, dies, and the rest hang at the next collective."
+    },
+    {
+      "name": "inductor_cache_off_lustre",
+      "path": ["tests", "probe", "cache_paths", "TORCHINDUCTOR_CACHE_DIR", "on_lustre"],
+      "type": "must_be_false",
+      "note": "Same failure mode as the Triton cache."
+    },
+    {
+      "name": "scratch_visible",
+      "path": ["tests", "probe", "mounts", "/scratch"],
+      "type": "must_be_true",
+      "note": "Bind mounts actually reached the container."
+    },
+    {
+      "name": "projappl_visible",
+      "path": ["tests", "probe", "mounts", "/projappl"],
+      "type": "must_be_true",
+      "note": "/projappl is a symlink into /pfs/lustrepN. Passing a realpath-resolved path into singularity broke this historically; the current bindings module binds /pfs, so this gate records whether that is still an issue."
+    },
+    {
+      "name": "device_count_matches_binding",
+      "path": ["tests", "probe", "visibility", "torch_device_count"],
+      "type": "equals",
+      "expect": 1,
+      "note": "One GCD per rank. The container sets ROCR_VISIBLE_DEVICES from its OCI ENTRYPOINT, which `apptainer exec` never runs -- only `apptainer run` does. Under exec without a launcher-side wrapper a rank sees all 8 GCDs, multiplying per-node fabric endpoints. A value of 8 here means binding did not happen."
+    }
+  ]
+}

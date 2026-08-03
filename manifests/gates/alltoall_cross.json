@@ -1,0 +1,50 @@
+{
+  "name": "gate4-alltoall-cross-node",
+  "description": "All-to-all spanning more than one node, i.e. EP=16 and EP=32. This is the configuration reported as failing with PTLTE_NOT_FOUND once the expert all-to-all crosses nodes, and at 32 ranks with an NCCL 'unhandled system error' during initialisation. It is also the case the shipped container test suite has no equivalent of.",
+  "gates": [
+    {
+      "name": "alltoall_passed",
+      "path": ["tests", "alltoall", "passed"],
+      "type": "must_be_true",
+      "note": "The headline gate. A failure here is the reported defect reproducing."
+    },
+    {
+      "name": "payload_correct",
+      "path": ["tests", "alltoall", "correctness", "passed"],
+      "type": "must_be_true",
+      "note": "Correctness across the fabric, not just completion without error."
+    },
+    {
+      "name": "zero_mismatches",
+      "path": ["tests", "alltoall", "correctness", "mismatches"],
+      "type": "max",
+      "limit": 0
+    },
+    {
+      "name": "uneven_splits_correct",
+      "path": ["tests", "alltoall", "uneven", "passed"],
+      "type": "must_be_true",
+      "note": "Uneven cross-node dispatch is what a real MoE expert exchange looks like."
+    },
+    {
+      "name": "communicator_churn_clean",
+      "path": ["tests", "alltoall", "group_churn", "passed"],
+      "type": "must_be_true",
+      "note": "Repeated cross-node communicator creation. Portals table entries and other CXI resources are finite; exhaustion appears on the Nth creation, not the first."
+    },
+    {
+      "name": "actually_crossed_nodes",
+      "path": ["tests", "alltoall", "spans_nodes"],
+      "type": "must_be_true",
+      "note": "Guards the test itself. Without this a misconfigured job could satisfy every gate above while never leaving the node -- which is precisely how the reported regression survived validation."
+    },
+    {
+      "name": "bandwidth_large_message_gbps",
+      "path": ["tests", "alltoall", "bandwidth_gbps"],
+      "reducer": "last",
+      "type": "min",
+      "limit": 1.5,
+      "note": "PROVISIONAL -- recalibrate from a measured baseline. A LUMI-G node has 4x200 Gbit/s Slingshot NICs shared by 8 ranks, so per-rank cross-node bandwidth is a fraction of the 23.75 GB/s the container's own suite asserts for a single process per node."
+    }
+  ]
+}

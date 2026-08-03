@@ -29,6 +29,68 @@ resolve_apptainer_cmd() {
   exit 1
 }
 
+# Cache placement is the difference between a job that works at 8 nodes and one that
+# loses a rank at 64. Triton/Inductor cache writes are not atomic on Lustre: at 64+ ranks
+# a rank reads a half-written entry, raises JSONDecodeError, exits, and the remaining
+# ranks hang at the next collective. Per-node /tmp removes the contention entirely.
+#
+# LAIF_CACHE_MODE=tmp     per-node /tmp (safe default)
+# LAIF_CACHE_MODE=lustre  shared Lustre path -- for deliberately reproducing the failure
+lumi_setup_caches() {
+  LAIF_CACHE_MODE="${LAIF_CACHE_MODE:-tmp}"
+
+  # Key by container so an incompatible image cannot reuse another's compiled artifacts,
+  # and so the compile cost is paid once per container rather than once per job.
+  local container_id
+  container_id="$(basename "${CONTAINER_IMAGE}" .sif)"
+
+  case "${LAIF_CACHE_MODE}" in
+    tmp)
+      LAIF_CACHE_ROOT="/tmp/laif-cache-${USER}/${container_id}"
+      ;;
+    lustre)
+      LAIF_CACHE_ROOT="${SCRATCH_ROOT}/${USER}/laif-cache/${container_id}"
+      ;;
+    *)
+      echo "LAIF_CACHE_MODE must be 'tmp' or 'lustre', got '${LAIF_CACHE_MODE}'" >&2
+      exit 1
+      ;;
+  esac
+
+  export LAIF_CACHE_ROOT
+  export TRITON_CACHE_DIR="${LAIF_CACHE_ROOT}/triton"
+  export TORCHINDUCTOR_CACHE_DIR="${LAIF_CACHE_ROOT}/inductor"
+  export TORCH_EXTENSIONS_DIR="${LAIF_CACHE_ROOT}/extensions"
+  export MIOPEN_USER_DB_PATH="${LAIF_CACHE_ROOT}/miopen"
+  export MIOPEN_CUSTOM_CACHE_DIR="${MIOPEN_USER_DB_PATH}/cache"
+  export MIOPEN_USER_DB="${MIOPEN_USER_DB_PATH}/config"
+
+  # Only the Lustre paths can be created here; /tmp is node-local, so each node creates
+  # its own inside the srun step (see lumi_cache_mkdir_cmd).
+  if [[ "${LAIF_CACHE_MODE}" == "lustre" ]]; then
+    mkdir -p "${TRITON_CACHE_DIR}" "${TORCHINDUCTOR_CACHE_DIR}" \
+             "${TORCH_EXTENSIONS_DIR}" "${MIOPEN_USER_DB_PATH}"
+  fi
+}
+
+# The digest is published alongside the release, so there is no need to hash 14 GB
+# ourselves. Recording it is what makes a result traceable to an exact image.
+lumi_container_digest() {
+  local resolved dir base sha_file digest
+  resolved="$(readlink -f "${CONTAINER_IMAGE}" 2>/dev/null || echo "${CONTAINER_IMAGE}")"
+  dir="$(dirname "${resolved}")"
+  base="$(basename "${resolved}")"
+  for sha_file in "${dir}"/*.sha256; do
+    [[ -f "${sha_file}" ]] || continue
+    digest="$(awk -v want="${base}" 'index($NF, want) {print $1; exit}' "${sha_file}")"
+    if [[ -n "${digest}" ]]; then
+      echo "${digest}"
+      return
+    fi
+  done
+  echo ""
+}
+
 lumi_init() {
   require_template_config
   PROJECT_NAME="${PROJECT_NAME:?set PROJECT_NAME (e.g. project_465000001)}"
@@ -71,11 +133,11 @@ lumi_init() {
 
   mkdir -p "${CACHE_ROOT}" "${RESULTS_DIR}" "${LOG_DIR}"
 
-  MIOPEN_DIR=$(mktemp -d)
-  export MIOPEN_CUSTOM_CACHE_DIR="${MIOPEN_DIR}/cache"
-  export MIOPEN_USER_DB="${MIOPEN_DIR}/config"
+  lumi_setup_caches
   export TORCH_HOME="${TORCH_HOME:-${SCRATCH_ROOT}/${USER}/torch_home}"
   mkdir -p "${TORCH_HOME}"
+
+  export BENCH_CONTAINER_DIGEST="$(lumi_container_digest)"
 
   export BENCH_CONTAINER_IMAGE="${CONTAINER_IMAGE}"
   export BENCH_RESULTS_DIR="${RESULTS_DIR}"
@@ -95,10 +157,19 @@ lumi_init() {
     export NCCL_NET_GDR_LEVEL="${NCCL_NET_GDR_LEVEL:-PHB}"
   fi
 
-  GPU_WRAPPER=()
+  # Per-task wrapper, run outside the container by srun. Two jobs:
+  #   1. Create the cache directories -- with LAIF_CACHE_MODE=tmp these live on each
+  #      node's own /tmp, so they cannot be created from the login node.
+  #   2. Bind one GCD per rank. The container would do this from its OCI ENTRYPOINT, but
+  #      `apptainer exec` never runs an ENTRYPOINT, so under exec we must do it here or
+  #      every rank sees all 8 GCDs. Set USE_ROCR_VISIBLE_DEVICES=0 with APPTAINER_MODE=run
+  #      to test whether the container's own binding works.
+  local wrapper_body='mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR" "$TORCH_EXTENSIONS_DIR" "$MIOPEN_USER_DB_PATH";'
   if [[ "${USE_ROCR_VISIBLE_DEVICES:-0}" == "1" ]]; then
-    GPU_WRAPPER=(bash -lc 'export ROCR_VISIBLE_DEVICES=${SLURM_LOCALID}; exec "$@"' --)
+    wrapper_body+=' export ROCR_VISIBLE_DEVICES=${SLURM_LOCALID};'
   fi
+  wrapper_body+=' exec "$@"'
+  GPU_WRAPPER=(bash -lc "${wrapper_body}" --)
 
   SRUN_BASE=(
     srun
@@ -154,6 +225,17 @@ lumi_log_env() {
     echo "distribution=${DIST}"
     echo "cpu_bind=${CPU_BIND}"
     echo "time_limit=${TIME_LIMIT}"
+    echo "container_digest=${BENCH_CONTAINER_DIGEST}"
+    echo "apptainer_mode=${APPTAINER_MODE:-exec}"
+    echo "use_rocr_visible_devices=${USE_ROCR_VISIBLE_DEVICES:-0}"
+    echo "laif_cache_mode=${LAIF_CACHE_MODE}"
+    echo "laif_cache_root=${LAIF_CACHE_ROOT}"
+    if [[ -n "${NODELIST:-}" ]]; then
+      echo "nodelist=${NODELIST}"
+    fi
+    if [[ -n "${EXCLUDE_NODES:-}" ]]; then
+      echo "exclude_nodes=${EXCLUDE_NODES}"
+    fi
     if [[ "${ENABLE_LUMI_HSN}" == "1" ]]; then
       echo "nccl_socket_ifname=${NCCL_SOCKET_IFNAME}"
       echo "nccl_net_gdr_level=${NCCL_NET_GDR_LEVEL}"
@@ -164,7 +246,11 @@ lumi_log_env() {
 }
 
 lumi_exec() {
+  # APPTAINER_MODE=exec (default) runs the command directly and bypasses the image's
+  # ENTRYPOINT. APPTAINER_MODE=run goes through it. The lumi-multitorch entrypoint is
+  # where ROCR_VISIBLE_DEVICES and HIP_VISIBLE_DEVICES are set, so the two modes do not
+  # produce the same environment -- which is the point of having the toggle.
   "${SRUN_BASE[@]}" "${GPU_WRAPPER[@]}" \
-    "${APPTAINER_CMD}" exec "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
+    "${APPTAINER_CMD}" "${APPTAINER_MODE:-exec}" "${BIND_ARGS[@]}" "${CONTAINER_IMAGE}" \
     "${BENCH_CMD[@]}"
 }

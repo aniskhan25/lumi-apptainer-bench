@@ -1,23 +1,40 @@
 # LUMI Apptainer Benchmark
 
-A small benchmark harness for one task: compare a new LUMI container against a known stable container under the same launch setup.
+Two modes:
 
-The repo stays narrow on purpose:
+**Comparison** — benchmark a new LUMI container against a known stable one under the same
+launch setup. Outputs JSON plus `delta.json` percentage deltas. This is what `main` does.
+
+**Validation** — check a single container against absolute release gates. There is no
+baseline run, so each metric is checked against a declared limit in `manifests/gates/`
+rather than against a previous result. Added on this branch to validate the `-latest`
+container against the issues raised in the `project_465003047` experience report; see
+[`docs/PHASE0_FINDINGS.md`](docs/PHASE0_FINDINGS.md) and
+[`docs/VALIDATION.md`](docs/VALIDATION.md).
+
+The comparison scope stays narrow on purpose:
 - single-node compute
 - single-node DDP step timing
 - two-node allreduce
 - two-node DDP step timing
 - runtime and filesystem sanity checks
 
-The outputs are structured JSON files plus `delta.json` comparisons.
+Validation adds:
+- a startup capability probe (what the job actually loaded, per rank)
+- all-to-all correctness and bandwidth at EP=8 / 16 / 32
+- safe-by-default JIT cache placement, with a mode to reproduce the unsafe one
 
 ## Repo Layout
 - `bench/bench.py`: benchmark CLI
 - `bench/tests/`: individual benchmark tests
 - `bench/compare.sh`: run old and new containers and write `delta.json`
+- `bench/scripts/eval_gates.py`: check one results file against a gate spec
+- `manifests/gates/`: gate specs (thresholds and correctness invariants)
 - `templates/`: LUMI Slurm launch templates
-- `scripts/run_benchmarks.sh`: run the standard benchmark set
+- `scripts/run_benchmarks.sh`: run the standard comparison set
+- `scripts/run_validation.sh`: run the validation gates against one container
 - `scripts/summarize_results.py`: print Markdown tables from a results directory
+- `docs/`: findings records
 
 ## Clone
 ```bash

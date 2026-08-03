@@ -16,6 +16,10 @@ def _percentile(values, pct):
     return d0 + d1
 
 
+def percentile(values, pct):
+    return _percentile(values, pct)
+
+
 def timeit(fn, warmup=2, iters=5):
     for _ in range(max(warmup, 0)):
         fn()

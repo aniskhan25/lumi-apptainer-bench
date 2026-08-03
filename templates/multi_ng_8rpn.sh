@@ -14,7 +14,11 @@ GPUS_PER_NODE=8
 CPUS_PER_TASK="${CPUS_PER_TASK:-7}"
 TIME_LIMIT="${TIME_LIMIT:-01:00:00}"
 USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-1}"
-ENABLE_LUMI_HSN="${ENABLE_LUMI_HSN:-1}"
+# Off by default: ENABLE_LUMI_HSN=1 exports NCCL_NET_GDR_LEVEL=PHB, which forces GDR
+# even when the CXI/GDR path is broken and hangs multi-node collectives indefinitely
+# (job 19624583 hung until it was removed, then completed in 24s). Set to 1 only for
+# the deliberate fabric-tuning sweep.
+ENABLE_LUMI_HSN="${ENABLE_LUMI_HSN:-0}"
 ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-1}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

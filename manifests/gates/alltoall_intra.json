@@ -1,0 +1,58 @@
+{
+  "name": "gate3-alltoall-intra-node",
+  "description": "All-to-all confined to 8 ranks (one node, XGMI). This is the EP=8 topology that the reference MoE configuration relies on, and the control case for every cross-node result.",
+  "gates": [
+    {
+      "name": "alltoall_passed",
+      "path": ["tests", "alltoall", "passed"],
+      "type": "must_be_true",
+      "note": "Correctness, uneven splits and communicator churn all clean."
+    },
+    {
+      "name": "payload_correct",
+      "path": ["tests", "alltoall", "correctness", "passed"],
+      "type": "must_be_true",
+      "note": "Rank-tagged payloads arrived where they belong. A summed checksum cannot tell a correct exchange from a permuted one."
+    },
+    {
+      "name": "zero_mismatches",
+      "path": ["tests", "alltoall", "correctness", "mismatches"],
+      "type": "max",
+      "limit": 0,
+      "note": "No tolerance: this is an exact integer-valued comparison, not a floating-point one."
+    },
+    {
+      "name": "uneven_splits_correct",
+      "path": ["tests", "alltoall", "uneven", "passed"],
+      "type": "must_be_true",
+      "note": "MoE routing produces uneven token counts per expert, including experts that receive nothing. Equal-split tests pass while this fails."
+    },
+    {
+      "name": "has_zero_token_peers",
+      "path": ["tests", "alltoall", "uneven", "zero_token_peers"],
+      "type": "min",
+      "limit": 1,
+      "note": "Guards the test itself: confirms the uneven case really did exercise a zero-token peer rather than silently degenerating to equal splits."
+    },
+    {
+      "name": "communicator_churn_clean",
+      "path": ["tests", "alltoall", "group_churn", "passed"],
+      "type": "must_be_true",
+      "note": "Repeated communicator create/destroy. Resource leaks show up here, not in a single-shot test."
+    },
+    {
+      "name": "stayed_intra_node",
+      "path": ["tests", "alltoall", "spans_nodes"],
+      "type": "must_be_false",
+      "note": "Guards the test itself: confirms this run really was the intra-node control."
+    },
+    {
+      "name": "bandwidth_large_message_gbps",
+      "path": ["tests", "alltoall", "bandwidth_gbps"],
+      "reducer": "last",
+      "type": "min",
+      "limit": 15.0,
+      "note": "PROVISIONAL -- recalibrate from a measured baseline. Reduced with `last` (largest message size), not `avg`: averaging across the sweep lets latency-bound small messages dominate. For reference the container's own suite asserts 37 GB/s for a far-pair intra-node point-to-point transfer at 64 MB; an 8-rank all-to-all mixes near and far pairs and shares links, so the per-rank figure is expected to be lower."
+    }
+  ]
+}
