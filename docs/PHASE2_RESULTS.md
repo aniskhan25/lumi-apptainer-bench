@@ -64,6 +64,15 @@ worse than the aggregate column suggests.
 
 ---
 
+## ~~New finding: EP=16 bandwidth is non-monotonic — it collapses at 16 MiB~~ (RETRACTED)
+
+> **Retracted by Phase 3.** See `docs/PHASE3_RESULTS.md`. Repeated runs showed ±20%
+> run-to-run variance at 16 MiB, and EP=16 on four nodes *rose* over the same range
+> (8.218 → 10.052 GB/s) rather than falling. The 10.544 → 8.930 drop below is within noise
+> for a single sample, so the "collapse" and its "specific to the cross-node path"
+> attribution do not hold. The corrected reading is that cross-node bandwidth *saturates*
+> beyond 4 MiB. The section is kept as written for the record.
+
 ## New finding: EP=16 bandwidth is non-monotonic — it collapses at 16 MiB
 
 The EP=16 curve rises to 10.544 GB/s at 4 MiB and then **falls to 8.930 GB/s at 16 MiB**,
