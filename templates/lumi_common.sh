@@ -182,7 +182,13 @@ lumi_init() {
     SRUN_BASE+=(--gpus-per-node="${GPUS_PER_NODE}")
   fi
   if [[ "${ENABLE_LUMI_CPU_MASKS}" == "1" ]]; then
+    # The mask list addresses 7 cores in each of 8 GPU groups, so it is only satisfiable
+    # on a whole node. A bare srun launched from a login node may be given a subset --
+    # observed 4 cores per group -- and srun then aborts the step with "CPU binding
+    # outside of job step allocation", which names neither the masks nor the cause.
+    # Ask for the whole node explicitly. LUMI-G bills per node anyway.
     CPU_BIND="mask_cpu:${CPU_BIND_MASKS:-${LUMI_GPU_CPU_BIND_MASKS}}"
+    SRUN_BASE+=(--exclusive)
   fi
   SRUN_BASE+=(
     --cpus-per-task="${CPUS_PER_TASK}"
