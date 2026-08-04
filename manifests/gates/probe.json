@@ -20,7 +20,14 @@
       "path": ["tests", "probe", "fabric", "fi_info_cxi_exit_code"],
       "type": "equals",
       "expect": 0,
-      "note": "The CXI provider carries RCCL traffic over Slingshot. If fi_info cannot see it, no RCCL tuning will help."
+      "optional": true,
+      "note": "The CXI provider carries RCCL traffic over Slingshot. Optional because the full image does not ship fi_info, so this is skipped rather than failed when the tool is absent -- see fi_info_available below."
+    },
+    {
+      "name": "fi_info_available",
+      "path": ["tests", "probe", "fabric", "fi_info_present"],
+      "type": "must_be_true",
+      "note": "Measured false on the 2026-05-13 full image: fi_info is not installed, so a user cannot enumerate fabric providers from inside the container. That is the first tool you would reach for when debugging a Portals/CXI error such as PTLTE_NOT_FOUND."
     },
     {
       "name": "aws_ofi_nccl_recorded",

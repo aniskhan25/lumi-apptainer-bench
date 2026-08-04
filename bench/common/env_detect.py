@@ -107,12 +107,34 @@ def tracked_env():
     return dict(sorted(out.items()))
 
 
-def _module_version(name, attr="__version__"):
+def _module_version(name, dist=None):
+    """Version of an importable module.
+
+    Uses importlib.metadata first: several packages here (megatron-core among them) expose
+    no __version__ on the module, and `__import__("a.b")` returns the top-level package
+    rather than the submodule, so reading the attribute off it silently yields "".
+    """
+    import importlib
+    import importlib.metadata
+
     try:
-        module = __import__(name)
+        importlib.import_module(name)
     except Exception as exc:  # noqa: BLE001 - any import failure is a reportable absence
         return {"present": False, "error": f"{type(exc).__name__}: {exc}"}
-    return {"present": True, "version": str(getattr(module, attr, "") or "")}
+
+    version = ""
+    for candidate in (dist, name.replace(".", "-"), name.split(".")[0]):
+        if not candidate:
+            continue
+        try:
+            version = importlib.metadata.version(candidate)
+            break
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    if not version:
+        module = importlib.import_module(name)
+        version = str(getattr(module, "__version__", "") or "")
+    return {"present": True, "version": version}
 
 
 def package_versions():
@@ -122,8 +144,9 @@ def package_versions():
         "torch": _module_version("torch"),
         "triton": _module_version("triton"),
         "flash_attn": _module_version("flash_attn"),
-        "megatron_core": _module_version("megatron.core"),
+        "megatron_core": _module_version("megatron.core", dist="megatron-core"),
         "transformer_engine": _module_version("transformer_engine"),
+        "apex": _module_version("apex"),
     }
     try:
         import torch
@@ -157,16 +180,30 @@ def fabric_info():
     reports nothing, no amount of RCCL tuning will help.
     """
     info = {}
-    if shutil.which("fi_info"):
+    # Distinguish "the tool is not installed" from "the provider is not there". The full
+    # image does not ship fi_info, so a 127 says nothing about the fabric -- and fi_info is
+    # exactly the tool a user would reach for when debugging a Portals/CXI error.
+    info["fi_info_present"] = bool(shutil.which("fi_info"))
+    if info["fi_info_present"]:
         code, out = run_cmd(["fi_info", "-p", "cxi"])
         info["fi_info_cxi_exit_code"] = code
         info["fi_info_cxi_snippet"] = "\n".join(out.splitlines()[:40])
         code, out = run_cmd(["fi_info", "--version"])
         info["libfabric_version"] = out.splitlines()[0] if code == 0 and out else ""
     else:
-        info["fi_info_cxi_exit_code"] = 127
+        info["fi_info_cxi_exit_code"] = None
         info["fi_info_cxi_snippet"] = ""
         info["libfabric_version"] = ""
+
+    # Fall back to the shared library, which is present even when the tool is not.
+    libs = []
+    for root in ("/opt/cray/libfabric", "/usr/lib64", "/usr/lib/x86_64-linux-gnu"):
+        code, out = run_cmd(["find", root, "-maxdepth", "3", "-name", "libfabric.so*"])
+        if code == 0 and out:
+            libs.extend(out.splitlines())
+    info["libfabric_libs"] = libs[:10]
+    code, out = run_cmd(["find", "/opt/cray/lib64", "-maxdepth", "2", "-name", "libcxi*"])
+    info["cxi_libs"] = out.splitlines()[:10] if code == 0 and out else []
     # aws-ofi-nccl is the RCCL<->libfabric plugin and the only comms-stack package that
     # changed between the April and May 2026 container builds.
     if shutil.which("dpkg-query"):
@@ -243,32 +280,57 @@ def mount_points():
     return checks
 
 
+EXPANDABLE_SEGMENTS_PROBE = (
+    "import torch, sys\n"
+    "t = torch.empty(1 << 26, dtype=torch.uint8, device='cuda')\n"
+    "del t\n"
+    "torch.cuda.empty_cache()\n"
+    "sys.stderr.write('PROBE_OK\\n')\n"
+)
+
+
 def expandable_segments_supported():
-    """Confirm whether PYTORCH_HIP_ALLOC_CONF=expandable_segments is a no-op here.
+    """Whether PYTORCH_HIP_ALLOC_CONF=expandable_segments actually does anything here.
 
-    The OOM message PyTorch prints recommends enabling this, but on ROCm it warns
-    "expandable_segments not supported on this platform"
-    (c10/hip/HIPAllocatorConfig.h:40), so the allocator cannot compact fragmentation.
-    Users following the error text are sent down a dead end.
+    The OOM message PyTorch prints recommends enabling this, but on ROCm the allocator
+    warns "expandable_segments not supported on this platform"
+    (c10/hip/HIPAllocatorConfig.h:40) and cannot compact fragmentation, so users following
+    the error text are sent down a dead end.
+
+    Run in a subprocess with the environment variable actually set, because that is the
+    only path that parses the allocator config and emits the warning. Calling the
+    (deprecated) _set_allocator_settings API in-process does not reach it, and reading its
+    return value gives a false "supported".
     """
+    env = dict(os.environ)
+    env["PYTORCH_HIP_ALLOC_CONF"] = "expandable_segments:True"
+    env["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     try:
-        import warnings
-
-        import torch
-
-        if not torch.cuda.is_available():
-            return {"supported": None, "reason": "no device"}
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            try:
-                torch.cuda.memory._set_allocator_settings("expandable_segments:True")
-            except Exception as exc:  # noqa: BLE001
-                return {"supported": False, "reason": f"{type(exc).__name__}: {exc}"}
-        messages = [str(w.message) for w in caught]
-        unsupported = any("not supported" in m for m in messages)
-        return {
-            "supported": not unsupported,
-            "warnings": messages,
-        }
-    except Exception as exc:  # noqa: BLE001
+        completed = subprocess.run(
+            [sys.executable, "-c", EXPANDABLE_SEGMENTS_PROBE],
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            timeout=300,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return {"supported": None, "reason": f"{type(exc).__name__}: {exc}"}
+
+    stderr = completed.stderr or ""
+    unsupported = "not supported" in stderr
+    allocated = "PROBE_OK" in stderr
+    if not allocated and completed.returncode != 0:
+        return {
+            "supported": None,
+            "reason": "probe allocation failed",
+            "exit_code": completed.returncode,
+            "stderr_tail": "\n".join(stderr.splitlines()[-10:]),
+        }
+    return {
+        "supported": not unsupported,
+        "requested": "expandable_segments:True",
+        "warning_seen": unsupported,
+        "stderr_tail": "\n".join(stderr.splitlines()[-10:]),
+    }
