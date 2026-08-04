@@ -66,12 +66,31 @@ def init_process_group(torch_mod):
     if not os.environ.get("MASTER_PORT"):
         os.environ["MASTER_PORT"] = DEFAULT_MASTER_PORT
 
+    # Bind the device and tell the process group about it before initialising. Without
+    # device_id, ProcessGroupNCCL warns "Guessing device ID based on global rank. This can
+    # cause a hang if rank to GPU mapping is heterogeneous" -- and with one visible GCD per
+    # rank (ROCR_VISIBLE_DEVICES=$SLURM_LOCALID) the mapping is exactly that: every rank sees
+    # a single device at index 0, so guessing rank 5 -> device 5 is wrong. Observed to hang
+    # when a rank held more than one large communicator at 128 ranks.
+    device_id = None
+    if torch_mod.cuda.is_available():
+        try:
+            index = local_cuda_index(torch_mod)
+            torch_mod.cuda.set_device(index)
+            device_id = torch_mod.device("cuda", index)
+        except Exception:  # noqa: BLE001 - fall back to the old behaviour
+            device_id = None
+
     try:
-        torch_mod.distributed.init_process_group(
-            backend=backend(),
-            rank=rank,
-            world_size=world_size,
-        )
+        kwargs = {"backend": backend(), "rank": rank, "world_size": world_size}
+        if device_id is not None:
+            try:
+                torch_mod.distributed.init_process_group(device_id=device_id, **kwargs)
+            except TypeError:
+                # Older PyTorch without the device_id parameter.
+                torch_mod.distributed.init_process_group(**kwargs)
+        else:
+            torch_mod.distributed.init_process_group(**kwargs)
     except Exception as exc:
         return False, str(exc)
     return True, ""
