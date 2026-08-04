@@ -24,7 +24,11 @@ CPUS_PER_TASK="${CPUS_PER_TASK:-7}"
 TIME_LIMIT="${TIME_LIMIT:-00:15:00}"
 USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-1}"
 ENABLE_LUMI_HSN="${ENABLE_LUMI_HSN:-0}"
-ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-1}"
+# Off for the probe. The LUMI GPU/CPU bind masks assume an exclusive full node (7 cores
+# per GPU group); a shared or partial allocation -- which is what dev-g hands out -- makes
+# srun reject them with "CPU binding outside of job step allocation". A probe measures
+# device visibility, not throughput, so NUMA placement is irrelevant here.
+ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lumi_common.sh"
