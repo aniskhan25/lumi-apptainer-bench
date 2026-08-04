@@ -126,9 +126,10 @@ generous, but it would actually bite. Deferred to Phase 5.
 
 ## Next
 
-The one configuration that would genuinely test report §4.4 is **16 nodes / 128 ranks with
-EP=32**, i.e. four concurrent 32-rank meshes. It is within the node ceiling for this branch
-and is the highest-value remaining collective run.
+**Answered — see [`docs/EP32_16NODE_RESULTS.md`](EP32_16NODE_RESULTS.md).** The 16-node /
+128-rank / EP=32 configuration with four concurrent meshes was run and **passes 2/2**, so
+report §4.4 does not reproduce in its own topology either. Per-rank bandwidth is flat in job
+size (7.54 / 7.69 / 7.56 GB/s at 4 MiB across 4-node and 16-node runs).
 
 Phase 4 also still holds the JIT cache work (`LAIF_CACHE_MODE=lustre` at 64+ ranks, report
 §4.7), which needs 8+ nodes and is independent of the above.
