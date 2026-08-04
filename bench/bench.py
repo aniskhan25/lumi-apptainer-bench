@@ -11,6 +11,7 @@ from tests import (
     allreduce,
     alltoall,
     check_rocm,
+    comm_count,
     ddp_step,
     gemm_torch,
     jit_cache,
@@ -328,6 +329,36 @@ def cmd_jit_cache(args):
     return 0 if result.get("passed") else 1
 
 
+def cmd_comm_count(args):
+    result = comm_count.run_comm_count(
+        max_groups=args.max_groups,
+        results_dir=_env("BENCH_RESULTS_DIR", os.path.dirname(args.out) or "."),
+    )
+    if not _is_rank0():
+        return 0
+    warnings = []
+    warning = _warning_from_error("comm_count", result)
+    if warning:
+        warnings.append(warning)
+    if result.get("ranks_missing"):
+        warnings.append(
+            "comm_count: ranks {} wrote no record -- lost before reporting".format(
+                result["ranks_missing"][:8]
+            )
+        )
+    if result.get("all_reached_limit") is False:
+        warnings.append(
+            "comm_count: hit a ceiling at {} concurrent communicators per rank "
+            "({} per node) -- raise --max-groups only if this was the requested limit".format(
+                result.get("communicators_min"), result.get("communicators_per_node")
+            )
+        )
+    if result.get("barrier_ok") is False:
+        warnings.append(f"comm_count: final barrier failed: {result.get('barrier_error')}")
+    _write_results(args.out, {"comm_count": result}, warnings)
+    return 0 if result.get("passed") else 1
+
+
 def cmd_compare(args):
     compare_path = os.path.join(os.path.dirname(__file__), "compare.sh")
     cmd = [compare_path] + args.args
@@ -443,6 +474,18 @@ def build_parser():
     )
     jit.set_defaults(clear_cache=_env("BENCH_JIT_CLEAR_CACHE", "1") != "0")
     jit.set_defaults(func=cmd_jit_cache)
+
+    cc = subparsers.add_parser(
+        "comm-count", help="concurrent communicator count stress (report 4.1)"
+    )
+    cc.add_argument("--out", required=True, help="Output JSON path")
+    cc.add_argument(
+        "--max-groups",
+        type=int,
+        default=int(_env("BENCH_MAX_GROUPS", "32")),
+        help="Ceiling on concurrent world-spanning communicators per rank.",
+    )
+    cc.set_defaults(func=cmd_comm_count)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)

@@ -1,0 +1,47 @@
+{
+  "name": "gate6-concurrent-communicator-count",
+  "description": "How many live network-using communicators a rank can hold. Report 4.1's PTLTE_NOT_FOUND concerns Portals List Table Entries, a finite per-NIC resource, and a Megatron MoE job holds data-, tensor-, pipeline-, expert- and expert-data-parallel communicators at once. Every group-shape test in this suite has been clean at sizes 8/16/32 across 1-16 nodes, so communicator population is the remaining untested variable.",
+  "gates": [
+    {
+      "name": "comm_count_passed",
+      "path": ["tests", "comm_count", "passed"],
+      "type": "must_be_true",
+      "note": "Every rank created every requested communicator and reported."
+    },
+    {
+      "name": "no_missing_ranks",
+      "path": ["tests", "comm_count", "ranks_missing"],
+      "reducer": "len",
+      "type": "max",
+      "limit": 0,
+      "note": "A rank that wrote no record was lost before reporting. Each rank writes its file before the final barrier precisely so this is distinguishable from a hang."
+    },
+    {
+      "name": "no_failed_ranks",
+      "path": ["tests", "comm_count", "ranks_failed"],
+      "reducer": "len",
+      "type": "max",
+      "limit": 0,
+      "note": "Ranks where communicator creation or its first collective raised."
+    },
+    {
+      "name": "all_ranks_reached_limit",
+      "path": ["tests", "comm_count", "all_reached_limit"],
+      "type": "must_be_true",
+      "note": "A collective is only usable if every participant built it, so the binding number is the minimum across ranks, not the maximum."
+    },
+    {
+      "name": "communicators_per_rank",
+      "path": ["tests", "comm_count", "communicators_min"],
+      "type": "min",
+      "limit": 16,
+      "note": "PROVISIONAL. A Megatron MoE job with data, pipeline, expert and expert-data groups needs well under 16 live communicators per rank, so 16 is a floor for 'enough for a real workload' rather than a measured hardware limit. Raise once the actual ceiling is known."
+    },
+    {
+      "name": "final_barrier_ok",
+      "path": ["tests", "comm_count", "barrier_ok"],
+      "type": "must_be_true",
+      "note": "Absent rather than false if the job is killed by its time limit, and a missing value counts as a failure, so a hang is still caught."
+    }
+  ]
+}
