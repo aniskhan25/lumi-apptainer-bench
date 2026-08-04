@@ -46,6 +46,21 @@ def _mem(torch):
     }
 
 
+def _flush(rank_file, record):
+    """Persist the record so far.
+
+    Called after every step, not once at the end. A 128-rank run with 32 communicators was
+    killed by its time limit mid-loop and left no rank files at all, so it cost a 16-node
+    allocation and produced nothing beyond "it did not finish". Writing incrementally means a
+    timeout still shows exactly which step stalled and how long the preceding ones took.
+    """
+    os.makedirs(os.path.dirname(rank_file), exist_ok=True)
+    tmp = f"{rank_file}.partial"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, indent=2, sort_keys=True)
+    os.replace(tmp, rank_file)
+
+
 def _exercise(torch, group, device):
     """Force the communicator to actually initialise.
 
@@ -96,6 +111,7 @@ def run_comm_count(max_groups=DEFAULT_MAX_GROUPS, results_dir=""):
         torch.cuda.set_device(device)
 
         record["baseline_memory"] = _mem(torch)
+        _flush(rank_file, record)
 
         for index in range(1, max_groups + 1):
             step = {"communicators": index}
@@ -120,8 +136,11 @@ def run_comm_count(max_groups=DEFAULT_MAX_GROUPS, results_dir=""):
                     "message": str(exc)[:1500],
                 }
                 record["steps"].append(step)
+                _flush(rank_file, record)
                 break
             record["steps"].append(step)
+            # Flush per step: the next iteration may be the one that never returns.
+            _flush(rank_file, record)
 
         succeeded = [s for s in record["steps"] if s["ok"]]
         record["communicators_created"] = len(succeeded)
@@ -141,11 +160,9 @@ def run_comm_count(max_groups=DEFAULT_MAX_GROUPS, results_dir=""):
         record["ok"] = False
         record["fatal"] = {"type": type(exc).__name__, "message": str(exc)[:1500]}
 
-    # Written before the barrier below: if a peer has already died or the fabric has run out
-    # of endpoints, that barrier hangs and this file is the only surviving evidence.
-    os.makedirs(rank_dir, exist_ok=True)
-    with open(rank_file, "w", encoding="utf-8") as handle:
-        json.dump(record, handle, indent=2, sort_keys=True)
+    # Final flush before the barrier: if a peer has already died or the fabric has run out of
+    # endpoints, that barrier hangs and this file is the only surviving evidence.
+    _flush(rank_file, record)
 
     barrier_ok = True
     barrier_error = ""
