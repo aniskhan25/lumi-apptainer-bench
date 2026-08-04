@@ -182,13 +182,16 @@ lumi_init() {
     SRUN_BASE+=(--gpus-per-node="${GPUS_PER_NODE}")
   fi
   if [[ "${ENABLE_LUMI_CPU_MASKS}" == "1" ]]; then
-    # The mask list addresses 7 cores in each of 8 GPU groups, so it is only satisfiable
-    # on a whole node. A bare srun launched from a login node may be given a subset --
-    # observed 4 cores per group -- and srun then aborts the step with "CPU binding
-    # outside of job step allocation", which names neither the masks nor the cause.
-    # Ask for the whole node explicitly. LUMI-G bills per node anyway.
+    # The mask list addresses 7 cores in each of 8 GPU groups (56 cores), so it is only
+    # satisfiable when the step actually holds those cores. A bare srun launched from a
+    # login node on standard-g was observed to receive 28 cores instead
+    # (0x001E1E1E1E1E1E1E: 4 per group across 7 groups), and srun then aborts the whole
+    # step with "CPU binding outside of job step allocation" -- an error naming neither
+    # the masks nor the cause. Neither --exclusive nor --hint=nomultithread changed the
+    # allocation shape; running under an sbatch allocation that holds the full node does.
+    # Set ENABLE_LUMI_CPU_MASKS=0 to fall back to --cpu-bind=cores, which costs some NUMA
+    # locality but always launches.
     CPU_BIND="mask_cpu:${CPU_BIND_MASKS:-${LUMI_GPU_CPU_BIND_MASKS}}"
-    SRUN_BASE+=(--exclusive)
   fi
   SRUN_BASE+=(
     --cpus-per-task="${CPUS_PER_TASK}"
