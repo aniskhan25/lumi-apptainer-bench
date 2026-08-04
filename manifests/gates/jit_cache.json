@@ -51,6 +51,13 @@
       "type": "min",
       "limit": 1,
       "note": "Guards the test itself: confirms compilation actually wrote cache entries. Zero would mean the workload never compiled and the test proved nothing."
+    },
+    {
+      "name": "enough_real_compilations",
+      "path": ["tests", "jit_cache", "compilations_min"],
+      "type": "min",
+      "limit": 6,
+      "note": "Guards the test itself, and it caught a real defect. Dynamo's automatic_dynamic_shapes collapses a changing dimension into one dynamic kernel after the second recompile: a 24-shape run was measured compiling only twice, with shapes 3-24 taking 0.00 s, so it applied no more cache pressure than a 6-shape run. Without this gate that run reported a clean pass and looked like evidence."
     }
   ]
 }

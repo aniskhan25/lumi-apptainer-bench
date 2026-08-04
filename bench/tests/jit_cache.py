@@ -84,19 +84,44 @@ def _classify(exc):
     }
 
 
+# A shape that takes at least this long is treated as having actually compiled rather than
+# hit an in-process cache. Real compiles here run 1-10 s; cache hits run ~0.00 s.
+COMPILE_SECONDS_THRESHOLD = 0.4
+
+
 def _compile_shapes(torch, shapes, device):
-    """Compile the same function at several shapes, recording per-shape outcome."""
+    """Compile the same function at several shapes, recording per-shape outcome.
+
+    Two settings are load-bearing, and without them this test silently does almost nothing:
+
+    - `dynamic=False` and `automatic_dynamic_shapes=False`. By default Dynamo notices a
+      changing dimension after the second recompile and produces a single dynamic kernel
+      that serves every later shape. Measured directly: with 24 shapes only the first two
+      compiled (9.9 s, 1.8 s) and shapes 3-24 took 0.00 s, so a 24-shape run generated
+      exactly as many cache entries as a 6-shape one.
+    - `torch._dynamo.reset()` before each shape, which drops the in-process code cache and
+      forces the on-disk cache to be re-read. That read is where a partially written entry
+      surfaces as JSONDecodeError, so without the reset the test exercises the write path
+      but never the read path.
+
+    Together these approximate the reported workload, where a fused activation recompiled on
+    every step because tokens-per-expert varied with routing.
+    """
+    import torch._dynamo
+
+    torch._dynamo.config.automatic_dynamic_shapes = False
 
     def fn(x, y):
         return torch.nn.functional.gelu(x @ y) + x
-
-    compiled = torch.compile(fn)
 
     results = []
     for size in shapes:
         entry = {"size": size}
         started = time.perf_counter()
         try:
+            # Fresh compile per shape, re-reading the shared on-disk cache each time.
+            torch._dynamo.reset()
+            compiled = torch.compile(fn, dynamic=False)
             x = torch.randn(size, size, device=device, dtype=torch.bfloat16)
             y = torch.randn(size, size, device=device, dtype=torch.bfloat16)
             out = compiled(x, y)
@@ -107,6 +132,7 @@ def _compile_shapes(torch, shapes, device):
             entry["ok"] = False
             entry["error"] = _classify(exc)
         entry["seconds"] = time.perf_counter() - started
+        entry["compiled"] = entry["seconds"] >= COMPILE_SECONDS_THRESHOLD
         results.append(entry)
     return results
 
@@ -159,6 +185,10 @@ def run_jit_cache(shapes=None, clear_cache=True, results_dir=""):
         record["shapes"] = _compile_shapes(torch, shapes, device)
         record["compile_seconds"] = time.perf_counter() - started
         record["cache_after"] = {k: _cache_stats(v) for k, v in dirs.items()}
+        # How many shapes genuinely compiled. If this is far below len(shapes), Dynamo
+        # collapsed them into one kernel and the run did not apply the pressure intended.
+        record["compilations"] = sum(1 for s in record["shapes"] if s.get("compiled"))
+        record["shapes_requested"] = len(record["shapes"])
         record["failed_shapes"] = [s for s in record["shapes"] if not s["ok"]]
         record["corruption_errors"] = [
             s["error"] for s in record["shapes"]
@@ -232,6 +262,13 @@ def _aggregate(rank_dir, world_size, dirs):
         ][:5],
         "compile_seconds_min": min(total_compile) if total_compile else None,
         "compile_seconds_max": max(total_compile) if total_compile else None,
+        # Guards the test: the minimum number of real compilations any rank performed.
+        "compilations_min": min(
+            (r["compilations"] for r in records if "compilations" in r), default=0
+        ),
+        "shapes_requested": max(
+            (r.get("shapes_requested", 0) for r in records), default=0
+        ),
         "cache_files_after": (
             max(
                 (
