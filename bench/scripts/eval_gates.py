@@ -31,7 +31,14 @@ from compare_results import avg, get_value, load_json
 def _reduce(value, reducer):
     if reducer is None:
         return value
-    if not isinstance(value, list) or not value:
+    if not isinstance(value, list):
+        return None
+    # len is defined on an empty list and 0 is usually the passing value (an empty list of
+    # failed ranks is a clean run). The others are genuinely undefined on no data, so they
+    # stay None and the gate reports missing.
+    if reducer == "len":
+        return len(value)
+    if not value:
         return None
     if reducer == "avg":
         return avg(value)
@@ -41,8 +48,6 @@ def _reduce(value, reducer):
         return max(value)
     if reducer == "min":
         return min(value)
-    if reducer == "len":
-        return len(value)
     raise ValueError(f"unknown reducer: {reducer}")
 
 

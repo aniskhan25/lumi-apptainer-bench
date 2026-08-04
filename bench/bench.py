@@ -13,6 +13,7 @@ from tests import (
     check_rocm,
     ddp_step,
     gemm_torch,
+    jit_cache,
     kernel_mix,
     probe,
 )
@@ -295,6 +296,38 @@ def cmd_alltoall(args):
     return 0 if result.get("passed") else 1
 
 
+def cmd_jit_cache(args):
+    result = jit_cache.run_jit_cache(
+        shapes=_parse_sizes(args.shapes) or None,
+        clear_cache=args.clear_cache,
+        results_dir=_env("BENCH_RESULTS_DIR", os.path.dirname(args.out) or "."),
+    )
+    if not _is_rank0():
+        return 0
+
+    warnings = []
+    warning = _warning_from_error("jit_cache", result)
+    if warning:
+        warnings.append(warning)
+    if result.get("ranks_missing"):
+        warnings.append(
+            "jit_cache: ranks {} wrote no record -- a rank died before reporting, which "
+            "is the failure shape the rest of the job then hangs on".format(
+                result["ranks_missing"][:8]
+            )
+        )
+    if result.get("ranks_with_cache_corruption"):
+        warnings.append(
+            "jit_cache: cache corruption on ranks {}".format(
+                result["ranks_with_cache_corruption"][:8]
+            )
+        )
+    if result.get("barrier_after_compile_ok") is False:
+        warnings.append(f"jit_cache: post-compile barrier failed: {result.get('barrier_error')}")
+    _write_results(args.out, {"jit_cache": result}, warnings)
+    return 0 if result.get("passed") else 1
+
+
 def cmd_compare(args):
     compare_path = os.path.join(os.path.dirname(__file__), "compare.sh")
     cmd = [compare_path] + args.args
@@ -385,6 +418,31 @@ def build_parser():
         help="Communicator create/destroy rounds.",
     )
     a2a.set_defaults(func=cmd_alltoall)
+
+    jit = subparsers.add_parser(
+        "jit-cache", help="concurrent JIT cache stress (report 4.7)"
+    )
+    jit.add_argument("--out", required=True, help="Output JSON path")
+    jit.add_argument(
+        "--shapes",
+        default=_env("BENCH_JIT_SHAPES", ""),
+        help="Comma-separated square matrix sizes; each yields a distinct cache entry.",
+    )
+    clear_group = jit.add_mutually_exclusive_group()
+    clear_group.add_argument(
+        "--clear-cache",
+        dest="clear_cache",
+        action="store_true",
+        help="Rank 0 empties the cache dirs first so all ranks compile cold (default).",
+    )
+    clear_group.add_argument(
+        "--keep-cache",
+        dest="clear_cache",
+        action="store_false",
+        help="Leave the cache warm; measures reuse instead of write contention.",
+    )
+    jit.set_defaults(clear_cache=_env("BENCH_JIT_CLEAR_CACHE", "1") != "0")
+    jit.set_defaults(func=cmd_jit_cache)
 
     compare = subparsers.add_parser("compare", help="A/B comparison")
     compare.add_argument("args", nargs=argparse.REMAINDER)

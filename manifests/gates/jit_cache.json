@@ -1,0 +1,56 @@
+{
+  "name": "gate5-jit-cache-under-rank-pressure",
+  "description": "Concurrent JIT compilation at 64+ ranks. Report 4.7: with Triton and Inductor caches on Lustre the concurrent writes lose races, a rank reads a partial entry and raises JSONDecodeError, that rank dies, and the rest hang at the next collective. A container whose defaults put these caches on Lustre fails this at scale while passing every small-scale test.",
+  "gates": [
+    {
+      "name": "jit_cache_passed",
+      "path": ["tests", "jit_cache", "passed"],
+      "type": "must_be_true",
+      "note": "Every rank compiled cleanly and every rank reported."
+    },
+    {
+      "name": "no_missing_ranks",
+      "path": ["tests", "jit_cache", "ranks_missing"],
+      "reducer": "len",
+      "type": "max",
+      "limit": 0,
+      "note": "A rank that wrote no record died before reporting. This is the specific shape of the reported failure, and it is why each rank writes its own file before the barrier -- reporting only through a collective would produce nothing in exactly this case."
+    },
+    {
+      "name": "no_cache_corruption",
+      "path": ["tests", "jit_cache", "ranks_with_cache_corruption"],
+      "reducer": "len",
+      "type": "max",
+      "limit": 0,
+      "note": "Ranks that hit JSONDecodeError or another partial-read error class."
+    },
+    {
+      "name": "no_failed_ranks",
+      "path": ["tests", "jit_cache", "ranks_failed"],
+      "reducer": "len",
+      "type": "max",
+      "limit": 0,
+      "note": "Ranks where any shape failed to compile, for any reason."
+    },
+    {
+      "name": "post_compile_barrier_ok",
+      "path": ["tests", "jit_cache", "barrier_after_compile_ok"],
+      "type": "must_be_true",
+      "note": "The collective the report says hangs once a rank has been lost. If the job is killed by its time limit instead, this gate is absent rather than false -- and a missing value counts as a failure, so the hang is still caught."
+    },
+    {
+      "name": "all_ranks_reported",
+      "path": ["tests", "jit_cache", "ranks_reporting"],
+      "type": "min",
+      "limit": 64,
+      "note": "Guards the test itself: the reported corruption needs 64+ ranks, so a run with fewer has not exercised the condition regardless of whether it passed."
+    },
+    {
+      "name": "cache_entries_created",
+      "path": ["tests", "jit_cache", "cache_files_after"],
+      "type": "min",
+      "limit": 1,
+      "note": "Guards the test itself: confirms compilation actually wrote cache entries. Zero would mean the workload never compiled and the test proved nothing."
+    }
+  ]
+}
