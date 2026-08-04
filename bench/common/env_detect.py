@@ -180,16 +180,25 @@ def fabric_info():
     reports nothing, no amount of RCCL tuning will help.
     """
     info = {}
-    # Distinguish "the tool is not installed" from "the provider is not there". The full
-    # image does not ship fi_info, so a 127 says nothing about the fabric -- and fi_info is
-    # exactly the tool a user would reach for when debugging a Portals/CXI error.
-    info["fi_info_present"] = bool(shutil.which("fi_info"))
+    # Three states, not two: absent, present-but-broken, and working. On the 2026-05-13
+    # release fi_info is on PATH but is a wrapper exec'ing /opt/mpi/libfabric/bin/fi_info,
+    # which is not installed -- so `which` succeeds and every invocation exits 127. Testing
+    # only for presence reports a healthy tool; testing only the exit code blames the
+    # fabric for a packaging bug.
+    info["fi_info_path"] = shutil.which("fi_info") or ""
+    version_code, version_out = (
+        run_cmd(["fi_info", "--version"]) if info["fi_info_path"] else (127, "")
+    )
+    info["fi_info_present"] = bool(info["fi_info_path"]) and version_code == 0
+    info["fi_info_runs"] = version_code == 0
+    info["fi_info_error"] = "" if version_code == 0 else version_out[:200]
     if info["fi_info_present"]:
         code, out = run_cmd(["fi_info", "-p", "cxi"])
         info["fi_info_cxi_exit_code"] = code
         info["fi_info_cxi_snippet"] = "\n".join(out.splitlines()[:40])
-        code, out = run_cmd(["fi_info", "--version"])
-        info["libfabric_version"] = out.splitlines()[0] if code == 0 and out else ""
+        info["libfabric_version"] = (
+            version_out.splitlines()[0] if version_out else ""
+        )
     else:
         info["fi_info_cxi_exit_code"] = None
         info["fi_info_cxi_snippet"] = ""

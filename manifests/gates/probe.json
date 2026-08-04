@@ -24,10 +24,10 @@
       "note": "The CXI provider carries RCCL traffic over Slingshot. Optional because the full image does not ship fi_info, so this is skipped rather than failed when the tool is absent -- see fi_info_available below."
     },
     {
-      "name": "fi_info_available",
-      "path": ["tests", "probe", "fabric", "fi_info_present"],
+      "name": "fi_info_runs",
+      "path": ["tests", "probe", "fabric", "fi_info_runs"],
       "type": "must_be_true",
-      "note": "Measured false on the 2026-05-13 full image: fi_info is not installed, so a user cannot enumerate fabric providers from inside the container. That is the first tool you would reach for when debugging a Portals/CXI error such as PTLTE_NOT_FOUND."
+      "note": "KNOWN FAILING on the 2026-05-13 release, all variants. fi_info is on PATH but is a wrapper exec'ing /opt/mpi/libfabric/bin/fi_info, which is not installed, so it exits 127. A user cannot enumerate fabric providers from inside the container -- the first tool you would reach for when debugging a Portals/CXI error such as PTLTE_NOT_FOUND."
     },
     {
       "name": "aws_ofi_nccl_recorded",
