@@ -12,9 +12,29 @@ Nothing here required an allocation.
        lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif
 ```
 
-As of 2026-08-03 the `-latest` symlink still points at the May 13 build — the build the
+As of 2026-08-04 the `-latest` symlink still points at the May 13 build — the build the
 report identifies as regressed. Every user who follows the documented `-latest` path gets
 this image.
+
+Confirmed against the public release list
+(`lumi-ai-factory/laifs-container-recipes`): this release was published 2026-05-18, is not
+a pre-release, and **nothing newer has been released since**. The eight most recent
+releases are
+
+```
+2026-05-18  lumi-multitorch-u24r70f21m50t210-20260513_121430   <- latest
+2026-04-22  lumi-multitorch-u24r70f21m50t210-20260415_130625   <- the build the report pinned
+2026-03-27  lumi-multitorch-u24r64f21m43t29-20260319_153422
+2026-02-27  lumi-multitorch-u24r64f21m43t29-20260225_144743
+2026-02-17  lumi-multitorch-u24r64f21m43t29-20260216_093549
+2026-01-26  lumi-multitorch-u24r64f21m43t29-20260124_092648    (pre-release)
+2025-12-10  lumi-multitorch-u24r64f21m43t29-20251209_134408    (pre-release)
+2025-12-01  lumi-multitorch-u24r64f21m43t28-20251128_145346    (pre-release)
+```
+
+So the suspect image has been the default for roughly two and a half months, and the
+report's workaround — pin April, never use `-latest` — is still the only mitigation in
+circulation.
 
 **Artifacts available in the release directory.** Worth stating because the roadmap
 assumed they did not exist:
@@ -111,6 +131,30 @@ collectives onto Slingshot, and the layer that would surface a Portals error. It
 prime candidate. The `torch` rebuild is secondary: same upstream version, but a different
 LUMI AIF build, so the bundled RCCL may differ.
 
+### The regression has never been reported upstream
+The release carries a known-issues label, and that label is actively used. Querying it
+returns exactly two issues:
+
+| Issue | State | Title |
+| --- | --- | --- |
+| #27 | open | Worse than expected bitsandbytes int8 performance |
+| #24 | open | transformers 5.5.0 for Gemma 4 |
+
+Neither concerns the fabric. There is **no upstream issue for all-to-all, PTLTE,
+RCCL, CXI or Slingshot** on this release.
+
+Two consequences:
+
+- The reporter diagnosed the regression, worked around it by pinning April, and the
+  finding never reached the container maintainers. It is still live in the image every
+  user gets by default, and nobody upstream is tracking it. Filing it is arguably the
+  single highest-value action available from this whole exercise, and it costs nothing.
+- Issue #27 corresponds to the two FAILs in the shipped `-tests.md`
+  (`bitsandbytes-inference-int8`). So LAIF *does* track its own failing tests — they are
+  visible and filed, just not release-blocking. That is a more accurate statement than
+  "failing tests are ignored", and it means the release gate is the thing to change, not
+  the tracking.
+
 ### Classification
 Unresolved pending measurement — this is a candidate, not a confirmed cause. Recorded
 here so Phase 2/3 can test the hypothesis directly rather than rediscovering it.
@@ -156,6 +200,12 @@ ENTRYPOINT ["/opt/oci-entrypoint.sh"]
 ENTRYPOINT; only `apptainer run` does. The report's launch pattern is
 `sbatch → srun → singularity exec → torchrun`, and the LUMI AI Guide pattern this repo
 follows is the same.
+
+The published release notes (verified against the GitHub release body, byte-identical to
+the local `*-release.md`) describe the refactor and name `FI_HMEM_DISABLE_P2P` as an
+example of a variable that moved — but **carry no caveat that `exec` bypasses an
+ENTRYPOINT while `run` does not**, and do not mention the GPU-binding variables that moved
+with it. A user reading the notes has no way to know their launch mode now matters.
 
 ### Reasoning
 `FI_HMEM_DISABLE_P2P` is gated to `SLURM_NNODES = 1`, so losing it cannot explain a
@@ -212,10 +262,14 @@ All three already exist and ship with the release:
 The user, who diagnosed the regression in detail and pinned the April build in response,
 never found any of it.
 
+The known-issues mechanism is not merely present but working — the label carries two live
+issues (#27, #24). So the machinery the report asks for already exists and is maintained;
+what failed is the path from a user hitting a problem to that machinery.
+
 ### Classification
 Documentation defect — discoverability, not absence. The remedy is a pointer from the
 LUMI AI Factory software-environment docs to the per-release artifacts sitting next to
-each image, not new artifacts.
+each image, plus a statement of where to file, not new artifacts.
 
 ---
 
