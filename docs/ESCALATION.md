@@ -6,6 +6,21 @@ existing issue probably explains report §4.4.
 
 ---
 
+## Drafts
+
+Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these are drafts only.
+
+| Draft | Target repo |
+| --- | --- |
+| [`E1-fi_info-broken.md`](issues/E1-fi_info-broken.md) | `laifs-container-recipes` |
+| [`E2-entrypoint-not-run-under-exec.md`](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` |
+| [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
+| [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
+| [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
+| [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on #20, #28, #30 |
+
+---
+
 ## File on the container repo — 3 new issues
 
 ### E1. `fi_info` is broken in every variant of the release — highest confidence
