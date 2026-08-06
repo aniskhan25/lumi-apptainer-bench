@@ -49,6 +49,7 @@ Headline results:
 | Document | Contents |
 | --- | --- |
 | [`FINDINGS.md`](docs/FINDINGS.md) | **Consolidated response and recommendations** |
+| [`ESCALATION.md`](docs/ESCALATION.md) | What to file upstream, and what is already reported |
 | [`VALIDATION.md`](docs/VALIDATION.md) | How to run the gates |
 | [`PHASE0_FINDINGS.md`](docs/PHASE0_FINDINGS.md) | Desk analysis of shipped release artifacts |
 | [`PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md) | Capability probe, `exec`-vs-`run` binding, allocator |
