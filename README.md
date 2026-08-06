@@ -8,9 +8,55 @@ launch setup. Outputs JSON plus `delta.json` percentage deltas. This is what `ma
 **Validation** — check a single container against absolute release gates. There is no
 baseline run, so each metric is checked against a declared limit in `manifests/gates/`
 rather than against a previous result. Added on this branch to validate the `-latest`
-container against the issues raised in the `project_465003047` experience report; see
-[`docs/PHASE0_FINDINGS.md`](docs/PHASE0_FINDINGS.md) and
-[`docs/VALIDATION.md`](docs/VALIDATION.md).
+container against the issues raised in the `project_465003047` experience report.
+
+### Findings
+
+**Start here: [`docs/FINDINGS.md`](docs/FINDINGS.md)** — consolidated, evidence-backed
+response to the report, with job IDs and the container digest.
+
+Container under test: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430`
+(`sha256 f0de72f4…`), up to 16 nodes / 128 ranks, pure PyTorch (no Megatron-Core).
+
+| # | Report finding | Status |
+| --- | --- | --- |
+| 4.1 | Inter-node all-to-all regression (`PTLTE_NOT_FOUND`) | Not reproduced — hypotheses exhausted |
+| 4.2 | Usable HBM below nameplate | **Confirmed and quantified** |
+| 4.3 | `HSA_STATUS_ERROR_OUT_OF_RESOURCES` from `torch.compile` | Not tested |
+| 4.4 | 32-rank expert all-to-all fails | Not reproduced in its own topology |
+| 4.5 | Very long collective bootstrap | Not reproduced at ≤128 ranks; confound found |
+| 4.6 | Two jobs on one Lustre dataset | Not tested |
+| 4.7 | Lustre JIT caches corrupt under rank pressure | **Reproduced, root cause identified** |
+| 4.8 | `torch_dist` checkpoint hang | Not tested (needs Megatron) |
+| 4.9 | QOS limit discoverability | Out of scope (Slurm policy) |
+| 4.10 | Minor items | Partly addressed |
+
+Headline results:
+
+- **§4.7 reproduced.** Inductor names cache temp files `.{pid}.{tid}.tmp`, unique only within
+  a node. Across 16 nodes PIDs collide and ranks destroy each other's temp file before the
+  rename — three temp paths were each claimed by 2–4 distinct ranks. Per-node `/tmp` fixes it
+  completely; Lustre is also ~1.5× slower to compile.
+- **§4.2 explained.** ~630–650 MiB of device memory per RCCL communicator, invisible to
+  PyTorch (`memory_allocated()` reports 0.0 MiB throughout). At 8–10 communicators that is
+  ~6.8 GiB, matching the ~7 GiB gap the report measured.
+- **§4.1/§4.4 not reproduced**, including EP=32 with four concurrent meshes at 128 ranks.
+- **Six issues found that the report does not raise**, including `fi_info` broken in every
+  variant of the release and GPU binding inert under `apptainer exec`.
+
+### Reports
+
+| Document | Contents |
+| --- | --- |
+| [`FINDINGS.md`](docs/FINDINGS.md) | **Consolidated response and recommendations** |
+| [`VALIDATION.md`](docs/VALIDATION.md) | How to run the gates |
+| [`PHASE0_FINDINGS.md`](docs/PHASE0_FINDINGS.md) | Desk analysis of shipped release artifacts |
+| [`PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md) | Capability probe, `exec`-vs-`run` binding, allocator |
+| [`PHASE2_RESULTS.md`](docs/PHASE2_RESULTS.md) | All-to-all at EP=8 / EP=16, 2 nodes |
+| [`PHASE3_RESULTS.md`](docs/PHASE3_RESULTS.md) | EP=32, 4 nodes |
+| [`EP32_16NODE_RESULTS.md`](docs/EP32_16NODE_RESULTS.md) | EP=32, 128 ranks, four concurrent meshes |
+| [`PHASE4_RESULTS.md`](docs/PHASE4_RESULTS.md) | JIT cache under rank pressure |
+| [`PHASE5_COMM_COUNT_RESULTS.md`](docs/PHASE5_COMM_COUNT_RESULTS.md) | Communicator count and hidden memory |
 
 The comparison scope stays narrow on purpose:
 - single-node compute
