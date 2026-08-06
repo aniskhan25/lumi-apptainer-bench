@@ -17,10 +17,15 @@
 Same container, same workload, same rank count, same node count. The only difference is
 where the cache lives. This is the controlled reproduction report §4.7 describes.
 
-### Root cause: Inductor temp files are named per-process, not per-node
+### Root cause: the cache reader opens other processes' in-flight temp files
+
+> **Corrected 2026-08-06.** This section first attributed the failure to `pid`/`tid`
+> collisions between nodes. That was an over-inference from the filenames. Reading the torch
+> source and mapping ranks to nodes gives a simpler and better-supported mechanism, below.
+> No measurement changed; the interpretation did.
 
 The failing path is `torch/_inductor/codecache.py:1040`, and the error is not a corrupt read
-but a vanished write:
+but a vanished file:
 
 ```
 [rank81] FileNotFoundError: [Errno 2] No such file or directory:
@@ -29,20 +34,48 @@ but a vanished write:
   '<lustre>/inductor/fxgraph/qz/fqzsuavdiy.../.45092.22875271438464.tmp'
 ```
 
-Inductor writes a cache entry by creating `.{pid}.{thread_id}.tmp` and renaming it into
-place. That name is unique **within a node** — and PIDs are per-node, so on a filesystem
-shared across 16 nodes they collide. Counting the affected temp paths:
+Two pieces of torch source explain it. The writer, `write_atomic` at `codecache.py:454`,
+places its temp file in the **same directory as the target**:
 
-| Temp filename | Distinct ranks claiming it |
-| --- | --- |
-| `.45092.22875271438464.tmp` | **4** |
-| `.45088.22948413677696.tmp` | **4** |
-| `.45089.23386800717952.tmp` | **2** |
+```python
+tmp_path = path.parent / f".{os.getpid()}.{threading.get_ident()}.tmp"
+```
 
-Identical `pid.tid` pairs on different nodes, writing to the same shared path, clobbering
-each other's temp file before the rename. That is the race, and it explains precisely why
-per-node `/tmp` fixes it completely: each node gets its own directory, so the PID namespace
-and the path namespace finally agree.
+The reader, `GuardedCache.iterate_over_candidates` around `codecache.py:1031–1044`, lists that
+directory and opens **every** entry, with no filtering of temp files:
+
+```python
+subdir = cls._get_tmp_dir_for_key(key)
+if os.path.exists(subdir):
+    for path in sorted(os.listdir(subdir)):
+        try:
+            with open(os.path.join(subdir, path), "rb") as f:   # <- opens .tmp files too
+                ...
+        except Exception:
+            log.warning("fx graph cache unable to load compiled graph", exc_info=True)
+```
+
+So a reader lists the directory, sees another rank's in-flight `.{pid}.{tid}.tmp`, and by the
+time it calls `open()` the writer has renamed it away. `FileNotFoundError`, logged at :1040.
+
+**The evidence supports this rather than a collision.** Mapping the affected ranks to nodes
+(8 ranks/node):
+
+| Temp filename | Ranks reporting it | Node indices |
+| --- | --- | --- |
+| `.45092.22875271438464.tmp` | 81, 35, 107, 33 | 4, 10, 13 |
+| `.45088.22948413677696.tmp` | 5, 79, 72, 33 | 0, 4, 9 |
+| `.45089.23386800717952.tmp` | 19, 92 | 2, 11 |
+
+Several readers on *different* nodes report the *same* temp filename. That is what one
+writer's temp file seen by many readers looks like — every reader reports the writer's
+`pid.tid`. It does not require two processes to have picked the same PID.
+
+**Why per-node `/tmp` fixes it.** Two effects compound. The directory is shared by 8 ranks
+instead of 128, so there are far fewer readers to lose the race; and on `tmpfs` the
+write→rename window is far narrower than on Lustre, which is consistent with the 1.5× compile
+time difference measured below. Widening that window is what turns a theoretical race into a
+frequent one.
 
 80 warnings landed across the cache subdirectories — `inductor/codecache` (70),
 `aotautograd` (6), `fxgraph` (4) — hitting **9 distinct ranks**. The `tmp` arm produced
@@ -62,11 +95,11 @@ small scale and expensive at large scale.
 
 ### Relationship to the reported symptom
 
-The report saw `JSONDecodeError` — a rank *reading* a partially written entry. This run saw
-`FileNotFoundError` on a temp file — a rank *writing* one that another rank destroyed. Both
-are the same lost-race class on a shared cache directory, surfacing at different points in
-the write-then-rename sequence. The report's exact exception was not reproduced; the
-mechanism behind it was.
+The report saw `JSONDecodeError`; this run saw `FileNotFoundError`. Both are the cache
+*reader* losing a race against a writer on a shared directory: a partially written file
+decodes as bad JSON, a file already renamed away fails to open. Which of the two you get
+depends on where in the writer's sequence the reader lands. The report's exact exception was
+not reproduced; the mechanism behind it was.
 
 One deliberate difference: their failure killed a rank, which hung the rest at the next
 collective. This test catches per-shape exceptions and keeps going, so the failing rank

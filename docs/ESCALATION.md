@@ -76,8 +76,9 @@ identical except cache location:
 | per-node `/tmp` | none | 28.3–28.5 s | pass |
 
 Lustre is also ~1.5× slower to compile even when nothing fails. Setting per-node defaults keyed
-by container ID would remove the failure class for every user. Note the root cause is upstream
-(see U1) — but the container is where the mitigation belongs, since it controls the defaults.
+by container ID would remove the failure class for every user. The root cause is upstream — the
+Inductor cache reader opens other processes' in-flight `.tmp` files (see U1) — but the container
+is where the mitigation belongs, since it controls the defaults.
 
 ---
 
@@ -126,7 +127,7 @@ was attributed to the container is placement.
 
 | # | Finding | Where | Note |
 | --- | --- | --- | --- |
-| U1 | Inductor cache temp files named `.{pid}.{tid}.tmp` collide across nodes on a shared filesystem, failing at `torch/_inductor/codecache.py:1040` | **pytorch/pytorch** | Root cause of §4.7 and of E3. Three temp paths were each claimed by 2–4 distinct ranks. Genuinely upstream and not LUMI-specific. |
+| U1 | Inductor's cache reader `open()`s other processes' in-flight `.{pid}.{tid}.tmp` files, failing at `torch/_inductor/codecache.py:1040` | **pytorch/pytorch** | Root cause of §4.7 and of E3. `iterate_over_candidates` lists the cache dir and opens every entry without skipping temp files, while `write_atomic` puts its temp file in that same dir. Genuinely upstream and not LUMI-specific. |
 | T1 | Release test suite has no all-to-all test, and its inter-node test runs one process per node | **lumi-ai-factory/laifs-container-tests** | Separate repo. 18 tests, all collectives are allreduce or point-to-point, so endpoint-count-driven failures are unreachable by construction. |
 | D1 | `expandable_segments` is a no-op on this platform; publish a practical per-GCD memory ceiling and the ~0.65 GiB-per-communicator overhead | LUMI docs | Confirmed verbatim at `c10/hip/HIPAllocatorConfig.h:40`. |
 | D2 | `init_process_group(device_id=…)` is required; omitting it hangs multi-communicator jobs | LUMI docs / reference recipe | Note #28's own reproducer already passes `device_id`, so maintainers know — but the LUMI-facing recipe should state it. |

@@ -54,32 +54,36 @@ determine. Detail: [`PHASE4_RESULTS.md`](PHASE4_RESULTS.md). Jobs 20684269, 2068
 | Lustre | **1 of 128** (rank 20) | yes | 42.0–43.2 s | **FAIL** |
 | per-node `/tmp` | none | none | 28.3–28.5 s | PASS |
 
-**Root cause.** Inductor writes a cache entry as `.{pid}.{thread_id}.tmp` then renames it.
-That name is unique only *within a node*, and PIDs are per-node, so on a shared filesystem
-across 16 nodes they collide. Measured collisions:
+**Root cause.** Two pieces of torch source. `write_atomic` (`codecache.py:454`) writes its
+temp file into the *same directory* as the target:
+`tmp_path = path.parent / f".{os.getpid()}.{threading.get_ident()}.tmp"`. And
+`GuardedCache.iterate_over_candidates` (`codecache.py:1031-1044`) lists that directory and
+`open()`s **every** entry with no filtering of temp files. So a reader sees another rank's
+in-flight `.tmp`, and by the time it opens it the writer has renamed it away —
+`FileNotFoundError`, logged at :1040.
 
-| Temp filename | Distinct ranks claiming it |
-| --- | --- |
-| `.45092.22875271438464.tmp` | 4 |
-| `.45088.22948413677696.tmp` | 4 |
-| `.45089.23386800717952.tmp` | 2 |
+Several readers on *different* nodes reported the *same* temp filename
+(`.45092.22875271438464.tmp` from ranks 81/35/107/33, i.e. node indices 4/10/13), which is one
+writer's file seen by many readers rather than a PID collision. 80 such events hit 9 distinct
+ranks; the `/tmp` arm produced zero.
 
-Ranks on different nodes write the same path and destroy each other's temp file before the
-rename, failing at `torch/_inductor/codecache.py:1040`. 80 such events hit 9 distinct ranks;
-the `/tmp` arm produced zero. That is why per-node `/tmp` fixes it completely — the PID
-namespace and the path namespace finally agree.
+Per-node `/tmp` fixes it for two compounding reasons: the directory is shared by 8 ranks
+instead of 128, and on `tmpfs` the write→rename window is far narrower than on Lustre —
+consistent with the 1.5x compile-time difference.
 
 Most ranks recover by recompiling; one did not. The failure is probabilistic, so its rate
 grows with how much a job compiles — matching the report's "invisible at small scale and
 expensive at large scale".
 
-The report saw `JSONDecodeError` on a *read*; this run saw `FileNotFoundError` on a *write*.
-Same lost-race class at a different point in write-then-rename. Their exact exception was not
-reproduced; the mechanism behind it was.
+The report saw `JSONDecodeError`; this run saw `FileNotFoundError`. Both are the cache *reader*
+failing on an entry another rank was mid-write — a partially written file decodes as bad JSON,
+a renamed-away file fails to open. Same race, different point in the writer's sequence. Their
+exact exception was not reproduced; the mechanism behind it was.
 
 **Also:** Lustre caching costs ~1.5× compile time even when nothing fails.
 
-**Upstream.** The `pid.tid` naming is a PyTorch issue independent of LUMI and worth filing.
+**Upstream.** The reader not skipping temp files is a PyTorch issue independent of LUMI and
+worth filing — see [`ESCALATION.md`](ESCALATION.md) U1.
 
 ---
 

@@ -33,10 +33,11 @@ Container under test: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430`
 
 Headline results:
 
-- **§4.7 reproduced.** Inductor names cache temp files `.{pid}.{tid}.tmp`, unique only within
-  a node. Across 16 nodes PIDs collide and ranks destroy each other's temp file before the
-  rename — three temp paths were each claimed by 2–4 distinct ranks. Per-node `/tmp` fixes it
-  completely; Lustre is also ~1.5× slower to compile.
+- **§4.7 reproduced.** Inductor's cache reader lists the cache directory and `open()`s every
+  entry, including other ranks' in-flight `.{pid}.{tid}.tmp` files, which get renamed away
+  mid-read (`codecache.py:1040`). On Lustre with 128 ranks sharing one directory the race is
+  frequently lost; per-node `/tmp` fixes it completely, and Lustre is also ~1.5× slower to
+  compile.
 - **§4.2 explained.** ~630–650 MiB of device memory per RCCL communicator, invisible to
   PyTorch (`memory_allocated()` reports 0.0 MiB throughout). At 8–10 communicators that is
   ~6.8 GiB, matching the ~7 GiB gap the report measured.
