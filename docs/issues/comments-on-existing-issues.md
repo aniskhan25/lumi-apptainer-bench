@@ -76,6 +76,31 @@ Comments to add to existing `laifs-container-recipes` issues rather than filing 
 > question and the useful artefacts are the full environment plus node list from each failing
 > run.
 >
+> **3. A third data point, build-independent.** On 2026-08-06 a run on the **March**
+> `20260319_153422` build — the one this issue reports as working — succeeded at 2 nodes and failed
+> at both 128 and 256 nodes with a collective timeout rather than an init failure:
+>
+> ```
+> [PG ID 10 PG GUID 10 Rank 0] Watchdog caught collective operation timeout:
+> WorkNCCL(SeqNum=4, OpType=BROADCAST, NumelIn=68585472, NumelOut=68585472,
+> Timeout(ms)=600000) ran for 600025 milliseconds before timing out.
+> ```
+>
+> (job 20766576, `standard-g`, 128 nodes / 1024 ranks; the step ran 13 min 23 s before the
+> watchdog aborted rank 0). The same failure was then seen on the `rocm` variant, so it does not
+> track the ROCm version either.
+>
+> Note this is on a **non-default process group** (PG ID 10) at **SeqNum 4** — so three collectives
+> had already succeeded on that group and the fabric was working for it. That points at one rank
+> diverging or stalling rather than at connection establishment, and it is the same shape as a
+> failure we reproduced from an unrelated cause: a single rank dying in Inductor compilation while
+> the other 127 wait at the next collective. So a timeout on rank 0 is not by itself evidence about
+> the fabric.
+>
+> Taken with the two points above, "which build is broken" looks increasingly like the wrong axis:
+> the same class of failure now appears on March, April and the `rocm` variant, and varies with
+> scale and configuration instead.
+>
 > For what it is worth we could not reproduce a cross-node all-to-all failure on the May build at
 > any group size (8/16/32) or node count (1/2/4/16), with rank-tagged correctness checking and
 > uneven/zero-token dispatch. Details and job IDs:
