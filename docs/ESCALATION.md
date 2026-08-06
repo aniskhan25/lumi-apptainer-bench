@@ -17,6 +17,7 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 | [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
 | [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
+| [`G1-guide-miopen-user-db-typo.md`](issues/G1-guide-miopen-user-db-typo.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
 | [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on #20, #28, #30 |
 
 ---
@@ -53,15 +54,15 @@ Portals/CXI error. It looks installed and fails with a message naming neither li
 real cause. Given issues #28, #30 and #20 are all fabric-adjacent, this is the diagnostic
 users need most and cannot use.
 
-### E2. `ENTRYPOINT` no longer takes effect under `apptainer exec` — regresses #6 and #13
+### E2. The #6 / #13 GPU-binding fix is doubly opt-in and undocumented
 
-No existing issue, and it is best framed as a regression against the *intent* of closed issues
+No existing issue, and it is best framed as a gap against the *intent* of closed issues
 **#6** ("Copy ROCR_VISIBLE_DEVICES to HIP_VISIBLE_DEVICES at container startup") and **#13**
 ("Environment variable HIP_VISIBLE_DEVICES set incorrectly").
 
 The `20260513` release moved runtime variables from a SIF runscript into an OCI `ENTRYPOINT`
-(`Containerfile:256–268`). `apptainer exec` does not run an ENTRYPOINT; only `run` does. The
-LUMI AI Guide launch pattern, and the reporter's, is `exec`. Measured at one node, 8 ranks:
+(`Containerfile:256–268`). `apptainer exec` does not run an ENTRYPOINT; only `run` does.
+Measured at one node, 8 ranks:
 
 | Launcher binds | Mode | `ROCR_VISIBLE_DEVICES` seen | Devices/rank |
 | --- | --- | --- | --- |
@@ -73,14 +74,44 @@ LUMI AI Guide launch pattern, and the reporter's, is `exec`. Measured at one nod
 *inside* the container in the middle row and the exports still did not happen, so the cause is
 the ENTRYPOINT not executing rather than an unset variable.
 
-So the fix delivered for #6 is inert for anyone launching with `exec`. Ask: either relocate the
-logic somewhere `exec` honours, or state in the release notes that `run` is required for it.
+**Correction to an earlier version of this section.** It said "the LUMI AI Guide launch pattern,
+and the reporter's, is `exec`". The reporter's is; the guide's is not. Every runnable example for
+these images uses `run` — all 20 launch commands in LUMI-AI-Guide @ `3705c3c`, and all three
+examples on `docs.lumi-supercomputer.eu/laif/software/ai-environment/`. `exec` appears in generic
+LUMI container docs, and once inside the guide itself (`05-multi-gpu-and-node/README.md:297`) as an
+abbreviated snippet five lines below the same command written with `run`.
+
+That narrows the verb half of the finding but the second condition then removes nearly everyone
+who is left: `singularity inspect --environment` shows the image sets **no default** for
+`ROCR_USE_SLURM_LOCALID` or `MAP_HIP_TO_ROCR_VISIBLE_DEVICES`, and neither name appears in the
+release notes, the LUMI docs search index, or any guide script. The guide's own
+`run_ddp_srun_4.sh` uses `run` with 8 tasks per node and sets neither, so no binding happens there
+either — it works only because the training script binds from `LOCAL_RANK`.
+
+So the mechanism reaches only users who use `run` *and* independently found two undocumented
+variables. Ask is now primarily documentation: state that `run` is required, document the two
+variables, and consider `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` as an `ENV` default since `ENV`
+applies under both verbs.
 
 ### E3. Set safe JIT cache defaults in the image — hardening, with a reproduction
 
 No existing issue. The image sets none of `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR`,
-`TORCH_EXTENSIONS_DIR`, `MIOPEN_USER_DB_PATH`, so a user who does not set them gets the
-framework default, typically `$HOME` — shared, and therefore unsafe at scale.
+`TORCH_EXTENSIONS_DIR`, `MIOPEN_USER_DB_PATH`, so each falls back to its framework default.
+
+**Correction to an earlier version of this section.** It said the defaults are "typically
+`$HOME`". Measured inside the image, three of four are (`TRITON_CACHE_DIR` →
+`/users/$USER/.triton/cache`, `TORCH_EXTENSIONS_DIR` → `/users/$USER/.cache/torch_extensions/…`,
+`MIOPEN_USER_DB_PATH` → `~/.config/miopen/`) but **`TORCHINDUCTOR_CACHE_DIR` defaults to
+`/tmp/torchinductor_$USER`, which is node-local**. Our failing arm set that variable explicitly, so
+a user who changes nothing does not hit it.
+
+They are steered into it instead. The LUMI-AI-Guide sets a cache block in 17 job scripts whose
+stated purpose is "to avoid saving to home directory", redirecting MIOpen's kernel cache to a
+node-local temp dir and `TORCH_HOME` to `/scratch` — while covering none of the three torch/Triton
+JIT variables. Completing that pattern by pointing the missing three at `/scratch`, as the block
+models for `TORCH_HOME`, builds exactly the failing configuration. The two the guide leaves alone
+default to `$HOME`, shared across the job's nodes and under a 20 GB quota. Both outcomes are bad
+and the documentation gives no basis for choosing.
 
 Reproduced on `20260513_121430`, 128 ranks / 16 nodes, 24 forced compilations per rank,
 identical except cache location:
@@ -144,6 +175,7 @@ was attributed to the container is placement.
 | --- | --- | --- | --- |
 | U1 | Inductor's cache reader `open()`s other processes' in-flight `.{pid}.{tid}.tmp` files, failing at `torch/_inductor/codecache.py:1040` | **pytorch/pytorch** | Root cause of §4.7 and of E3. `iterate_over_candidates` lists the cache dir and opens every entry without skipping temp files, while `write_atomic` puts its temp file in that same dir. Genuinely upstream and not LUMI-specific. |
 | T1 | Release test suite has no all-to-all test, and its inter-node test runs one process per node | **lumi-ai-factory/laifs-container-tests** | Separate repo. 18 tests, all collectives are allreduce or point-to-point, so endpoint-count-driven failures are unreachable by construction. |
+| G1 | `MIOPEN_USER_DB` is not a MIOpen variable (it is `MIOPEN_USER_DB_PATH`), in 17 guide scripts; and the same cache block omits `TRITON_CACHE_DIR` / `TORCHINDUCTOR_CACHE_DIR` / `TORCH_EXTENSIONS_DIR` | **Lumi-supercomputer/LUMI-AI-Guide** | Verified against the shipped `libMIOpen.so`: only `MIOPEN_USER_DB_PATH` exists, so the user perf DB stays on `$HOME`. Two-line fix; complements E3 from the user side. |
 | D1 | `expandable_segments` is a no-op on this platform; publish a practical per-GCD memory ceiling and the ~0.65 GiB-per-communicator overhead | LUMI docs | Confirmed verbatim at `c10/hip/HIPAllocatorConfig.h:40`. |
 | D2 | `init_process_group(device_id=…)` is required; omitting it hangs multi-communicator jobs | LUMI docs / reference recipe | Note #28's own reproducer already passes `device_id`, so maintainers know — but the LUMI-facing recipe should state it. |
 | D3 | Per-release artifacts (`*-release.md`, `*-tests.md`, known-issues label) exist but are undiscoverable | LUMI docs | The reporter never found them. Pointer, not new artifacts. |
@@ -159,7 +191,10 @@ was attributed to the container is placement.
 2. **E3** (cache defaults) — largest user impact; carries its own reproduction.
 3. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
    be dropped.
-4. **E2** (ENTRYPOINT under `exec`) — needs a maintainer decision on relocate-vs-document.
-5. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
-6. Comments on **#20** and **#30**, and the reframing question on **#28**.
-7. Documentation items D1–D4, then P1/P2 to the service desk.
+4. **G1** (guide `MIOPEN_USER_DB` typo + missing JIT cache vars) — smallest, fully verified, and
+   fixes the user-facing half of E3 without waiting on a container release.
+5. **E2** (ENTRYPOINT under `exec`) — now mostly a documentation ask; needs a maintainer decision
+   on whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default.
+6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
+7. Comments on **#20** and **#30**, and the reframing question on **#28**.
+8. Documentation items D1–D4, then P1/P2 to the service desk.

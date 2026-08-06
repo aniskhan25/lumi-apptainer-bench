@@ -62,10 +62,23 @@ rank0003 localid=3 rocr='3' count=1     rank0007 localid=7 rocr='7' count=1
 
 ### What this does and does not establish
 
-**Established:** the container documents and implements a GPU-binding mechanism that is
-silently inert under `exec`, which is the launch verb in the LUMI AI Guide pattern, in this
-repo, and in the reporter's own scripts. The release notes describe the runscript→ENTRYPOINT
-move but carry no caveat that `exec` bypasses an ENTRYPOINT.
+**Established:** the container implements a GPU-binding mechanism that is silently inert under
+`exec`, which is the launch verb in this repo and in the reporter's own scripts. The release notes
+describe the runscript→ENTRYPOINT move but carry no caveat that `exec` bypasses an ENTRYPOINT.
+
+**Correction (2026-08-06).** This section originally also named `exec` "the launch verb in the LUMI
+AI Guide pattern". That is wrong: all 20 launch commands in LUMI-AI-Guide @ `3705c3c` use
+`singularity run`, as do all three examples on the LAIF software-environment docs page. The one
+`exec` in the guide is an abbreviated snippet at `05-multi-gpu-and-node/README.md:297`.
+
+Checking that also turned up a second condition I had missed, which matters more than the verb:
+`singularity inspect --environment` shows the image sets **no default** for
+`ROCR_USE_SLURM_LOCALID` or `MAP_HIP_TO_ROCR_VISIBLE_DEVICES`, and neither name appears in the
+release notes, the LUMI docs search index, or any guide script. Arm C only bound devices because
+this test exported them. The guide's own `run_ddp_srun_4.sh` uses `run` with 8 tasks per node and
+sets neither, so it gets no container-side binding either — it works because
+`ddp_visiontransformer.py` binds from `LOCAL_RANK`. So the mechanism is doubly opt-in and reaches
+no documented workflow.
 
 **Consequence for a user:** with `srun --ntasks-per-node=8` + `exec` and no launcher-side
 binding, every rank sees all 8 GCDs. A script that does not explicitly select a device

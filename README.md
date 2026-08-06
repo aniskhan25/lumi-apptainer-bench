@@ -42,8 +42,10 @@ Headline results:
   PyTorch (`memory_allocated()` reports 0.0 MiB throughout). At 8–10 communicators that is
   ~6.8 GiB, matching the ~7 GiB gap the report measured.
 - **§4.1/§4.4 not reproduced**, including EP=32 with four concurrent meshes at 128 ranks.
-- **Six issues found that the report does not raise**, including `fi_info` broken in every
-  variant of the release and GPU binding inert under `apptainer exec`.
+- **Seven issues found that the report does not raise**, including `fi_info` broken in every
+  variant of the release, the container's GPU-binding fix reaching no documented workflow
+  (it needs `apptainer run` *and* two undocumented variables), and `MIOPEN_USER_DB` in 17
+  LUMI-AI-Guide scripts being a variable MIOpen does not read.
 
 ### Reports
 

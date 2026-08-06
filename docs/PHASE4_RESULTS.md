@@ -130,11 +130,29 @@ container ID. Phase 4 is the evidence that this default is load-bearing rather t
 cosmetic: the same job fails with the caches on Lustre and passes with them on `/tmp`.
 
 The container itself sets none of `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR`,
-`TORCH_EXTENSIONS_DIR` or `MIOPEN_USER_DB_PATH`, so a user who does not set them gets
-whatever the framework defaults to — typically `$HOME`, which is also shared. Setting safe
-per-node defaults in the image, or documenting them prominently, would remove this failure
-class for everyone. This is the strongest actionable recommendation to come out of the
-exercise so far.
+`TORCH_EXTENSIONS_DIR` or `MIOPEN_USER_DB_PATH`, so each falls back to its framework
+default. Measured inside the image, those defaults split two ways:
+
+| Variable | Default in the image | Shared across nodes? |
+| --- | --- | --- |
+| `TRITON_CACHE_DIR` | `/users/$USER/.triton/cache` | yes (`$HOME`) |
+| `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | yes (`$HOME`) |
+| `MIOPEN_USER_DB_PATH` | `~/.config/miopen/` | yes (`$HOME`) |
+| `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no (node-local) |
+
+Worth being precise about what this means for the failure above: the failing arm set
+`TORCHINDUCTOR_CACHE_DIR` explicitly, and the default for that one variable is already
+node-local. So a user who changes nothing does not hit this. They are steered into it
+instead — the LUMI-AI-Guide sets a cache block in 17 job scripts whose stated purpose is
+"to avoid saving to home directory", covering MIOpen's kernel cache and `TORCH_HOME`
+(→ `/scratch`) but none of the three torch/Triton JIT variables. Completing that pattern the
+way the guide models it, by pointing the missing three at `/scratch`, builds exactly the
+configuration that failed here. Meanwhile the two variables the guide leaves alone default
+to `$HOME`, which is shared across the job's nodes and quota-limited.
+
+Setting safe per-node defaults in the image, or documenting them prominently, would remove
+this failure class for everyone. This is the strongest actionable recommendation to come out
+of the exercise so far.
 
 ---
 

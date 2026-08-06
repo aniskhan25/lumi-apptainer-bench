@@ -241,18 +241,44 @@ arms at one node:
 not happen, so the cause is the ENTRYPOINT not executing. The release notes describe the
 refactor but carry **no caveat that `exec` bypasses an ENTRYPOINT**.
 
-A user following the documented `exec` pattern with `--ntasks-per-node=8` and no launcher-side
-binding gets every rank seeing all 8 GCDs. This is not support for §4.1 — on their
-`torchrun` pattern `SLURM_LOCALID` is 0 anyway and workers select by `LOCAL_RANK` — but it is
-a real defect on its own terms.
+A user using `exec` with `--ntasks-per-node=8` and no launcher-side binding gets every rank
+seeing all 8 GCDs. This is not support for §4.1 — on their `torchrun` pattern `SLURM_LOCALID` is
+0 anyway and workers select by `LOCAL_RANK` — but it is a real defect on its own terms.
+
+**Correction (2026-08-06).** An earlier version of this section called `exec` "the documented
+pattern". It is not, for these images: all 20 launch commands in LUMI-AI-Guide @ `3705c3c` and all
+three examples on the LAIF software-environment docs page use `run`. `exec` comes from generic LUMI
+container docs, from this repo's harness, and from the reporter's scripts — plus one abbreviated
+snippet in the guide's own `05-multi-gpu-and-node/README.md:297`, five lines below the same command
+written with `run`.
+
+The finding survives in a different form, because the binding is **doubly** opt-in. The image sets
+no default for `ROCR_USE_SLURM_LOCALID` or `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` (`singularity inspect
+--environment`), and neither name appears in the release notes, the LUMI docs search index, or any
+guide script. The guide's own `run_ddp_srun_4.sh` runs 8 tasks per node under `run` and sets
+neither, so it gets no container-side binding either; it works because the training script binds
+from `LOCAL_RANK`. The #6/#13 mechanism therefore reaches essentially nobody by default.
 
 ### 3. The container sets no cache variables — container gap
 
 None of `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR`, `TORCH_EXTENSIONS_DIR`,
-`MIOPEN_USER_DB_PATH` are set in the image, so a user who does not set them gets the framework
-default — typically `$HOME`, which is shared. Given finding 4.7, **setting safe per-node
-defaults in the image would remove that entire failure class for every user.** This is the
-single highest-value change available.
+`MIOPEN_USER_DB_PATH` are set in the image, so each falls back to its framework default. Measured
+inside the image: `TRITON_CACHE_DIR` → `/users/$USER/.triton/cache`, `TORCH_EXTENSIONS_DIR` →
+`/users/$USER/.cache/torch_extensions/py312_cpu`, `MIOPEN_USER_DB_PATH` → `~/.config/miopen/` —
+all on `$HOME`, shared across the job and under a 20 GB quota — while
+**`TORCHINDUCTOR_CACHE_DIR` → `/tmp/torchinductor_$USER`, which is node-local.**
+
+That last one matters for how finding 4.7 is reached: our failing arm set it explicitly, so the
+out-of-the-box default is safe for that specific failure. Users are steered off it instead. The
+LUMI-AI-Guide repeats a cache block in 17 job scripts whose stated purpose is "to avoid saving to
+home directory", sending MIOpen's kernel cache to node-local temp and `TORCH_HOME` to `/scratch`,
+and covering none of the three torch/Triton JIT variables. Completing that pattern by pointing them
+at `/scratch` is precisely the configuration that failed. (The same block also exports
+`MIOPEN_USER_DB`, which MIOpen does not read — the variable is `MIOPEN_USER_DB_PATH`, verified
+against the shipped `libMIOpen.so` — so the user perf DB stays on `$HOME` regardless.)
+
+**Setting safe per-node defaults in the image would remove that entire failure class for every
+user.** This is still the single highest-value change available.
 
 ### 4. Release artifacts exist but are undiscoverable — docs
 
@@ -301,11 +327,14 @@ for user-reported hangs and free to document.
 4. **Add an all-to-all test to the release suite** with ≥8 ranks/node across ≥2 nodes. The
    current suite has none, and its inter-node test runs one process per node, so it cannot
    reach endpoint-count-driven failures.
-5. **Note that `apptainer exec` bypasses the ENTRYPOINT** (finding 2), or move the binding
-   logic somewhere `exec` honours.
-6. **Point users at the per-release artifacts** (finding 4) and **file the fabric regression**
+5. **Fix the guide's cache block** — `MIOPEN_USER_DB` → `MIOPEN_USER_DB_PATH`, and add the three
+   torch/Triton JIT variables pointing at node-local storage (finding 3). Two lines, and it is the
+   user-side half of recommendation 1, available without a container release.
+6. **Document `ROCR_USE_SLURM_LOCALID` / `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` and the `run`
+   requirement** (finding 2). The binding feature currently activates for no documented workflow.
+7. **Point users at the per-release artifacts** (finding 4) and **file the fabric regression**
    (finding 5).
-7. **Document `device_id`** in the reference launch recipe (finding 6).
+8. **Document `device_id`** in the reference launch recipe (finding 6).
 8. **Extend the known-bad node list** and record node lists with all timing data (4.5).
 
 ## Ask of the reporter

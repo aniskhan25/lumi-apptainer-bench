@@ -1,17 +1,22 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
-**Title:** OCI `ENTRYPOINT` does not run under `apptainer exec`, so the #6 / #13 GPU-binding fix is inert for the documented launch pattern
+**Title:** The #6 / #13 GPU-binding fix is doubly opt-in and undocumented: inert under `apptainer exec`, and its two enabling variables are set nowhere
 
 ---
 
 ## Summary
 
 The `20260513_121430` release moved runtime variables from the SIF runscript into an OCI
-`ENTRYPOINT`. `apptainer exec` does not execute an image's `ENTRYPOINT` — only `apptainer run`
-does. Since the documented LUMI launch pattern is `srun … singularity exec … torchrun`, the
-GPU-binding logic added for #6 and #13 never runs for those users.
+`ENTRYPOINT`. The GPU-binding logic added for #6 and #13 lives there, and it only takes effect if
+**both** of the following hold:
 
-Measured: with binding left to the container under `exec`, every rank sees all 8 GCDs instead
-of one.
+1. the image is launched with `apptainer run` — `exec` does not execute an `ENTRYPOINT`; and
+2. the user has exported `ROCR_USE_SLURM_LOCALID=1` (and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1`).
+
+Neither condition is documented, and the image ships no default for either variable. The result is
+that the delivered fix does not apply to any launch pattern in the official documentation, and
+silently does nothing for users who switch to `exec`.
+
+Measured under `exec` with binding left to the container: every rank sees all 8 GCDs instead of one.
 
 ## Background
 
@@ -61,33 +66,79 @@ not happen — so the cause is the `ENTRYPOINT` not executing, not an unset vari
 row shows the same entrypoint working correctly when reached via `run`, and additionally setting
 `HIP_VISIBLE_DEVICES`, which the launcher-side path does not.
 
+## Scope: which launch verb is documented, and whether the variables are ever set
+
+I originally assumed `exec` was the documented pattern. It is not, for the LAIF images, so the
+first condition affects fewer users than I thought — but the second condition then removes almost
+everyone who is left.
+
+**Launch verb.** Every runnable example for these images uses `run`:
+
+- `docs.lumi-supercomputer.eu/laif/software/ai-environment/` — `singularity run $SIF …` in all
+  three examples.
+- LUMI-AI-Guide @ `3705c3c` — **20 of 20** launch commands across all ten chapters use
+  `singularity run`.
+
+`exec` appears in general LUMI container documentation
+(`runjobs/scheduled-jobs/container-jobs/`, `runjobs/scheduled-jobs/python/`), which is not
+LAIF-specific, and once in the AI Guide itself: `05-multi-gpu-and-node/README.md` line 297 shows
+
+```bash
+srun --cpu-bind=mask_cpu=$CPU_BIND_MASKS,v singularity exec ...
+```
+
+as an abbreviated illustration of the `--cpu-bind=v` flag, five lines below the same command
+written with `run`. That inconsistency is the point: the verb is being treated as interchangeable
+in the guide's own prose, and nothing tells a reader it changes the container's runtime behaviour.
+
+**The opt-in variables.** `singularity inspect --environment` on the `full` image sets neither
+`ROCR_USE_SLURM_LOCALID` nor `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` (nor `ROCR_VISIBLE_DEVICES` or
+`HIP_VISIBLE_DEVICES`). Neither name appears anywhere in the release notes, in the LUMI
+documentation search index, or in any LUMI-AI-Guide script.
+
+Concretely: the guide's own `05-multi-gpu-and-node/run_ddp_srun_4.sh` runs 8 tasks per node under
+`singularity run` and sets neither variable, so the binding branch does not fire there either.
+That example works only because `ddp_visiontransformer.py` selects its device from `LOCAL_RANK` —
+the container's binding logic contributes nothing.
+
+So the mechanism delivered for #6 and #13 currently reaches only users who both use `run` and
+independently discovered two undocumented variable names.
+
 ## Impact
 
-A user following the documented `exec` pattern with 8 ranks per node and relying on the
-container to bind devices gets all 8 GCDs visible to every rank. A script that does not select a
-device explicitly then places all 8 ranks on GCD 0 and leaves 7 idle.
+Two distinct groups:
 
-Scope note, to avoid overstating this: with `torchrun` under a single `srun` task,
-`SLURM_LOCALID` is 0 for that task, so the entrypoint would not bind devices even under `run`,
-and torchrun workers select their device from `LOCAL_RANK` — where seeing 8 devices is normal
-and harmless. The impact is specific to launch patterns that use `--ntasks-per-node=8` and
-expect the container to do the binding.
+- **`exec` users who rely on the container to bind devices** get all 8 GCDs visible to every rank.
+  A script that does not select a device explicitly then places all 8 ranks on GCD 0 and leaves 7
+  idle. This is the pattern the user report we were investigating used.
+- **Everyone else** gets no binding either, because the opt-in variables are unset — they are
+  simply unaffected, because the documented examples bind from `LOCAL_RANK` in the application.
+
+Scope note, to avoid overstating this: with `torchrun` under a single `srun` task, `SLURM_LOCALID`
+is 0 for that task, so the entrypoint would not bind devices even under `run` with the variables
+set, and torchrun workers select their device from `LOCAL_RANK` — where seeing 8 devices is normal
+and harmless. The impact is specific to launch patterns that use `--ntasks-per-node=8` and expect
+the container to do the binding.
 
 ## Request
 
-Either:
+Documentation, primarily:
 
-1. move the binding logic somewhere `exec` honours — `ENV` directives apply under both `exec`
-   and `run`, though the conditional-on-`SLURM_LOCALID` part cannot be expressed that way; or
-2. state explicitly in the release notes and the software-environment documentation that
-   `apptainer run` is required for the entrypoint logic to apply, and that `exec` users must
-   bind devices themselves.
+1. State in the release notes and in the software-environment documentation that `apptainer run`
+   is required for the entrypoint logic to apply, and that `exec` bypasses it entirely.
+2. Document `ROCR_USE_SLURM_LOCALID` and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` — what they do, and
+   that they must be exported by the user. Right now a feature exists that no documented workflow
+   activates.
+3. Consider whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default. `ENV`
+   directives apply under both `exec` and `run`, so that half would then work for everyone. The
+   `SLURM_LOCALID` conditional cannot be expressed as `ENV` and would still need `run`.
 
-Option 2 is cheap and would be enough. The current state is a silent no-op for the documented
-pattern, which is the difficult failure mode: nothing errors.
+The current state is a silent no-op, which is the difficult failure mode: nothing errors.
 
 ## Environment
 
 - Image: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif`
 - Digest: `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
 - LUMI `dev-g`, 1 node, 8 ranks
+- Verb/variable survey: LUMI-AI-Guide @ `3705c3c9a3ec0fd7f9e73980ab3cd41d29170c48`,
+  `docs.lumi-supercomputer.eu` search index as of 2026-08-06
