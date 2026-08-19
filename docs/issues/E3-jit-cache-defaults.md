@@ -84,8 +84,16 @@ Two notes:
 1. Use `ENV`, not the `ENTRYPOINT` — `apptainer exec` does not run an `ENTRYPOINT`.
 2. The directories must be created per node inside the job step, not at build time.
 
-Documenting the four variables would help, but a default is better: the problem is invisible at
-small scale and the only published guidance currently points at `/scratch`.
+## Relationship to LUMI-AI-Guide #112
+
+`Lumi-supercomputer/LUMI-AI-Guide#112` ("Document more environment variables") already tracks
+documenting `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR` and `TORCH_EXTENSIONS_DIR`, so the
+documentation half is recognised upstream and this issue is not asking for that again.
+
+The ask here is different and complementary: an **image default**, so the safe value applies to users
+who never read the guide, and to anyone building a derived image. Documentation alone leaves the
+default wrong for everyone who does not act on it — and the problem is invisible at small scale, so
+most users will not know they need to.
 
 ## Environment
 

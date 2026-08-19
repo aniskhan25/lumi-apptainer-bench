@@ -1,4 +1,5 @@
-Comments to add to existing `laifs-container-recipes` issues rather than filing duplicates.
+Comments to add to existing issues rather than filing duplicates. Targets both
+`laifs-container-recipes` and `Lumi-supercomputer/LUMI-AI-Guide`.
 
 ---
 
@@ -68,3 +69,147 @@ Comments to add to existing `laifs-container-recipes` issues rather than filing 
 > 13.9 s vs 1.14 s with `device_id`, second one never returning vs 0.29 s). Your reproducer already
 > passes `device_id`, so this is probably not your case — noting it because a single communicator
 > per rank survives the wrong guess, so the symptom only shows up in multi-communicator jobs.
+
+---
+
+## Comment on LUMI-AI-Guide #112 — "Document more environment variables"
+
+> Data for the three on the list, measured inside
+> `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`. The main point is that **the value
+> matters as much as documenting the name** — two of the three want node-local storage, not
+> `/scratch`.
+>
+> The image sets none of them, so they fall back to framework defaults, and the three are not
+> equivalent:
+>
+> | Variable | Default | Shared across the job's nodes? |
+> | --- | --- | --- |
+> | `TRITON_CACHE_DIR` | `/users/$USER/.triton/cache` | **yes** — `$HOME`, Lustre, 20 GB quota |
+> | `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | **yes** — same |
+> | `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no — already node-local |
+>
+> Reproduce:
+>
+> ```bash
+> singularity exec "$SIF" python3 -c "
+> from triton import knobs
+> from torch._inductor.runtime.cache_dir_utils import cache_dir
+> from torch.utils.cpp_extension import _get_build_directory
+> print(knobs.cache.dir)
+> print(cache_dir())
+> print(_get_build_directory('x', False))"
+> ```
+>
+> So `TRITON_CACHE_DIR` and `TORCH_EXTENSIONS_DIR` are the two that change behaviour today.
+>
+> **The caveat worth writing down.** The guide's existing cache block sends `TORCH_HOME` to
+> `/scratch` with the comment "to avoid saving to home directory". That is right for `TORCH_HOME`,
+> which is large and read-mostly, but wrong for JIT caches, which are many small files written
+> concurrently by every rank. Anyone extending the block by analogy would point these three at
+> `/scratch` and make things worse.
+>
+> We measured that arm: 128 ranks (16 nodes x 8), 24 forced Inductor compilations per rank,
+> identical except cache location.
+>
+> | Cache location | Failing ranks | Warnings | Compile time/rank |
+> | --- | --- | --- | --- |
+> | shared, on Lustre | 1 of 128 (hard `InductorError`, did not recover) | 80 across 9 ranks | 42.0-43.2 s |
+> | node-local `/tmp` | none | 0 | 28.3-28.5 s |
+>
+> In a distributed job the dead rank hangs the rest at the next collective. Lustre was also ~1.5x
+> slower even when nothing failed.
+>
+> Suggestion: add them to the existing per-node temp block rather than alongside `TORCH_HOME`, and
+> add `MIOPEN_USER_DB_PATH` to the list too (see #81 — there is a variable-name bug there).
+>
+> ```bash
+> JIT=$(mktemp -d)            # per node, inside the job step
+> export TRITON_CACHE_DIR=$JIT/triton
+> export TORCHINDUCTOR_CACHE_DIR=$JIT/inductor
+> export TORCH_EXTENSIONS_DIR=$JIT/extensions
+> ```
+
+---
+
+## Comment on LUMI-AI-Guide #81 — "Document the correct setting of temp dir for MIOpen" (closed)
+
+> This may be worth reopening: the code that landed does not match what the issue prescribed.
+>
+> The issue body specifies:
+>
+> ```bash
+> export MIOPEN_USER_DB_PATH=$MIOPEN_DIR/config
+> ```
+>
+> The scripts in the guide use:
+>
+> ```bash
+> export MIOPEN_USER_DB=$MIOPEN_DIR/config
+> ```
+>
+> `MIOPEN_USER_DB` is not read by MIOpen. Checked against the library shipped in the current
+> container (`libMIOpen.so.1.0.70002`), the only user-DB variable that exists is
+> `MIOPEN_USER_DB_PATH`:
+>
+> ```console
+> $ strings /opt/rocm/lib/libMIOpen.so | grep -oE 'MIOPEN_[A-Z0-9_]*' | sort -u | grep -E 'DB|CACHE'
+> MIOPEN_CUSTOM_CACHE_DIR
+> MIOPEN_DEBUG_DISABLE_FIND_DB
+> MIOPEN_DISABLE_CACHE
+> MIOPEN_FIND_CONV_INSUFFICIENT_WORKSPACE_ALLOW_FINDDB_UPDATE
+> MIOPEN_SYSTEM_DB_PATH
+> MIOPEN_USER_DB_PATH
+> ```
+>
+> `MIOPEN_USER_DB_PATH` appears 0 times in the repository; `MIOPEN_USER_DB` appears in 17 job
+> scripts.
+>
+> Effect: `MIOPEN_CUSTOM_CACHE_DIR` is redirected as intended, so the kernel cache is fine. The user
+> performance database is not redirected and stays at MIOpen's default `~/.config/miopen/`. So the
+> permission-clash problem described in this issue is half-addressed — the half on `/tmp` is fixed,
+> the half on a shared `$HOME` is not.
+>
+> One-line fix in each of the 17 scripts:
+>
+> ```diff
+> -export MIOPEN_USER_DB=$MIOPEN_DIR/config
+> +export MIOPEN_USER_DB_PATH=$MIOPEN_DIR/config
+> ```
+
+---
+
+## Comment on laifs-container-recipes #39 — "vLLM and compressed-tensors dependency conflict"
+
+> Two data points on the current release, `20260807_115122`.
+>
+> **1. The conflict is in the shipped images, not only in derived ones.** No derivation or extra
+> `pip install` needed:
+>
+> ```console
+> $ singularity exec lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif pip check
+> vllm 0.22.1+lumi.aif.gfx90a.0decac0 has requirement compressed-tensors==0.15.0.1,
+>   but you have compressed-tensors 0.17.1.
+> ```
+>
+> Same in `plus`. So the reporter's derived build inherited it rather than caused it.
+>
+> **2. It appears to be a metadata problem rather than a functional one.** Every
+> compressed-tensors module in vLLM imports cleanly against 0.17.1 — all 32 submodules, including
+> the whole `compressed_tensors_moe` family and every scheme:
+>
+> ```bash
+> singularity exec "$SIF" python3 -c "
+> import importlib, pkgutil
+> root='vllm.model_executor.layers.quantization.compressed_tensors'
+> pkg=importlib.import_module(root)
+> mods=sorted(m.name for m in pkgutil.walk_packages(pkg.__path__, root+'.'))
+> for m in mods: importlib.import_module(m)
+> print(len(mods), 'modules imported OK')"
+> # -> 32 modules imported OK
+> ```
+>
+> That is import coverage only — it does not exercise a quantized model at runtime, and Triton is
+> disabled on a login node, so any Triton-only path is untested here.
+>
+> So the actionable part is probably relaxing or correcting vLLM's pin rather than downgrading
+> compressed-tensors, but that depends on whether 0.15.0.1 was pinned for a real incompatibility.

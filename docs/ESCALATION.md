@@ -17,8 +17,7 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 | [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
 | [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
-| [`G1-guide-miopen-user-db-typo.md`](issues/G1-guide-miopen-user-db-typo.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
-| [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on #20, #28, #30 |
+| [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on recipes #20, #28, #30, #39 and guide #81, #112 |
 
 ---
 
@@ -169,8 +168,10 @@ was attributed to the container is placement.
    restores the first tool anyone reaches for when debugging the fabric.
 3. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
    be dropped.
-4. **G1** (guide `MIOPEN_USER_DB` typo + missing JIT cache vars) — smallest, fully verified, and
-   fixes the user-facing half of E3 without waiting on a container release.
+4. **Guide #112 and #81 comments** — the guide-side half of E3, already tracked upstream. #112 asks
+   for exactly the three JIT variables; the useful addition is that two of them want node-local
+   storage rather than `/scratch`. #81 is closed but its implementation used `MIOPEN_USER_DB`, which
+   MIOpen does not read.
 5. **E2** (ENTRYPOINT under `exec`) — now mostly a documentation ask; needs a maintainer decision
    on whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default.
 6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
