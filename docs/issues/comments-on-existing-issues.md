@@ -213,3 +213,59 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 >
 > So the actionable part is probably relaxing or correcting vLLM's pin rather than downgrading
 > compressed-tensors, but that depends on whether 0.15.0.1 was pinned for a real incompatibility.
+
+---
+
+## Comment on LUMI-AI-Guide #111 — "Not all VRAM can be used by PyTorch"
+
+> We measured this on `20260513_121430` while investigating a user report that ran into it, so here
+> are numbers for the footnote. On the sizing question in the thread: the effect is small for a plain
+> DDP job and large for multi-dimensional parallelism, which may be worth reflecting in where it goes.
+>
+> **Per-communicator cost, measured at three world sizes:**
+>
+> | Ranks | Device memory per RCCL communicator |
+> | --- | --- |
+> | 16 | 651.5 MiB |
+> | 64 | 626.8 MiB |
+> | 128 | 631.8 MiB |
+>
+> So ~**630-650 MiB per communicator**, essentially independent of world size. The marginal curve at
+> 16 ranks: ~90 MiB for the HIP context, ~950 MiB for the *first* communicator (RCCL one-time init
+> included), then a flat ~653 MiB for each additional one.
+>
+> **It is invisible to PyTorch.** Throughout all of the above, `torch.cuda.memory_allocated()`
+> reported **0.0 MiB**. The cost only shows in `torch.cuda.mem_get_info()`. That is why it surprises
+> people: the obvious API says the memory is free.
+>
+> **Why the impact is uneven.** Communicator count is what scales it:
+>
+> | Job shape | Communicators/rank | Hidden cost |
+> | --- | --- | --- |
+> | plain DDP | 1 | ~1 GiB — negligible |
+> | Megatron-style TP/PP/DP(/EP) | 8-10 | `950 + 9 x 653` ≈ **6.8 GiB**, ~11% of a 63.98 GiB GCD |
+>
+> This matches a user report we were validating: they could not exceed ~57 GiB against 63.98 GiB
+> nameplate — a ~7 GiB gap, consistent across three independent configurations — and eventually
+> settled on ~40 GB as their planning figure after some weeks. So it is rare in headcount but
+> expensive when it lands, and it lands on exactly the large-scale jobs that are hardest to debug.
+>
+> Suggested sizing rule if useful for chapter 10: subtract roughly
+>
+> ```
+> 1 + 0.65 x (communicators - 1)   GiB
+> ```
+>
+> before counting parameters, activations and optimizer state.
+>
+> **Related, same chapter:** `expandable_segments` is silently unsupported on this platform, so the
+> allocator cannot compact fragmentation and it is *reserved* rather than *allocated* memory that
+> determines failure:
+>
+> ```
+> UserWarning: expandable_segments not supported on this platform
+>   (Triggered internally at /pytorch/c10/hip/HIPAllocatorConfig.h:40.)
+> ```
+>
+> The option is accepted and ignored, which matters because PyTorch's own OOM message recommends
+> setting it. Worth one line next to the VRAM note so users do not spend time on a no-op.
