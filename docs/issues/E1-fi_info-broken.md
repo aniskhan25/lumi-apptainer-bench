@@ -41,5 +41,26 @@ return `libfabric: 2.1.0`. `fi_pingpong` is shadowed the same way.
 `rm -f /opt/venv/bin/fi_info /opt/venv/bin/fi_pingpong` at build time, or drop `oneccl` if it is
 not needed. Workaround for users: call `/usr/bin/fi_info`.
 
-Note `impi-rt` also causes a second, more serious problem — `mpi4py` running on Intel MPI instead
-of MPICH, with no `cxi` provider. Filed separately; same root cause.
+## Secondary: `impi-rt` also ships a duplicate `libmpi.so.12`
+
+Worth mentioning in the same fix, though low severity. `impi-rt` installs Intel MPI's
+`libmpi.so.12` into `/opt/venv/lib`, alongside the system MPICH 5.0.1 at
+`/usr/lib/x86_64-linux-gnu/libmpi.so.12`. They share the soname, so import order decides which one
+a process gets.
+
+In normal use this is harmless: `import torch` loads the system MPICH first, and `mpi4py` then
+binds to MPICH 5.0.1 correctly (verified on a GPU node). No shipped package triggers the other
+order — `megatron`, `vllm`, `transformer_engine` and `apex` never reference mpi4py, and `deepspeed`
+and `lightning` import torch before they reach it.
+
+It only bites if `mpi4py` is imported before `torch`, in which case Intel's library wins and torch
+then fails to load:
+
+```console
+$ singularity exec "$SIF" python3 -c "from mpi4py import MPI; import torch"
+OSError: /usr/lib/x86_64-linux-gnu/libmpicxx.so.12: undefined symbol: MPIX_Win_create_errhandler_x
+```
+
+That ordering is unusual on LUMI, where rank discovery comes from Slurm and collectives go through
+RCCL, so this is a latent wart rather than a live problem. Removing `oneccl`/`impi-rt` clears it for
+free alongside the `fi_info` fix.

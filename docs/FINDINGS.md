@@ -42,7 +42,7 @@ apex `1.10.0`, Megatron-Core `0.15.0rc8`, aws-ofi-nccl `1.19.1-git-206c02c`, MI2
 | 4.10 | Minor items (`realpath` binds, login Python, 383 vs 191.5 TF/s) | Partly addressed |
 | §6 | Megatron-Core observations | Not tested; bundled version confirmed |
 
-Plus eight issues found that the report does not raise — see [Independent findings](#independent-findings).
+Plus seven issues found that the report does not raise — see [Independent findings](#independent-findings).
 
 ---
 
@@ -224,19 +224,22 @@ reporter had no way to enumerate fabric providers from inside the container whil
 
 Confirmed unchanged on `20260807_115122`. Fix is `rm` of two files, or dropping `oneccl`.
 
-### 1b. `mpi4py` runs on Intel MPI, which has no `cxi` provider — container defect
+### 1b. A duplicate `libmpi.so.12` from the same dependency — low severity
 
-Same root cause as finding 1, and higher impact. In `full`/`plus`, `import mpi4py.MPI` loads
-`/opt/venv/lib/libmpi.so` (Intel MPI 2021.18.1), not the container's MPICH 5.0.1 — Intel MPI is
-MPICH-ABI-compatible and shares the `libmpi.so.12` soname. The system libfabric has `cxi`; Intel's
-bundled libfabric ships only `efa/mlx/psm3/psmx2/rxm/shm/tcp/verbs`.
+`impi-rt` also installs Intel MPI's `libmpi.so.12` into `/opt/venv/lib`, sharing a soname with the
+system MPICH 5.0.1. Import order decides which a process gets.
 
-The extension is the MPICH build (`MPI.mpich.cpython-312-*.so`, no RPATH, `ldd` resolving to the
-system MPICH), and `LD_LIBRARY_PATH` does not override the choice, so a user cannot configure
-around it.
+**Investigated and largely benign.** On a GPU node, `import torch` then `from mpi4py import MPI`
+gives **MPICH 5.0.1** and `MPI_Init` succeeds — the correct library. No shipped package forces the
+other order: `megatron`, `vllm`, `transformer_engine` and `apex` never reference mpi4py, `deepspeed`
+and `lightning` import torch first, and `h5py` is built without MPI support so its mpio path is
+closed. The failing order (`mpi4py` before `torch`, which raises
+`OSError: libmpicxx.so.12: undefined symbol: MPIX_Win_create_errhandler_x`) is not a pattern that
+arises on LUMI, where ranks come from Slurm and collectives go through RCCL.
 
-Not verified: no multi-node mpi4py run was done, so "cannot use Slingshot" is inferred from the
-provider list, not measured. A 2-node bandwidth test with `FI_LOG_LEVEL=info` would settle it.
+Recorded because it is fixed for free by the same `oneccl`/`impi-rt` removal as finding 1, not
+because it needs its own escalation. An earlier version of this section claimed mpi4py could not use
+Slingshot; that was wrong for the realistic import order.
 
 ### 2. GPU binding is inert under `apptainer exec` — container defect + docs
 

@@ -15,7 +15,6 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 | [`E1-fi_info-broken.md`](issues/E1-fi_info-broken.md) | `laifs-container-recipes` |
 | [`E2-entrypoint-not-run-under-exec.md`](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` |
 | [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
-| [`E4-mpi4py-uses-intel-mpi.md`](issues/E4-mpi4py-uses-intel-mpi.md) | `laifs-container-recipes` |
 | [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
 | [`G1-guide-miopen-user-db-typo.md`](issues/G1-guide-miopen-user-db-typo.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
@@ -23,7 +22,7 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 
 ---
 
-## File on the container repo — 4 new issues
+## File on the container repo — 3 new issues
 
 ### E1. `fi_info` / `fi_pingpong` shadowed by Intel MPI shims — highest confidence
 
@@ -44,20 +43,6 @@ variants. Both halves were wrong. `/usr/bin/fi_info` is present and works; `libf
 absence. Confirmed unchanged on `20260807_115122`.
 
 Fix is one line (`rm` the two shims) or dropping `oneccl`.
-
-### E4. `mpi4py` runs on Intel MPI, which has no `cxi` provider — same root cause as E1
-
-No existing issue, and higher impact than E1. `import mpi4py.MPI` in `full`/`plus` loads
-`/opt/venv/lib/libmpi.so` (Intel MPI 2021.18.1) rather than the container's MPICH 5.0.1, because
-Intel MPI shares the `libmpi.so.12` soname. The system libfabric 2.1.0 has the `cxi` provider;
-Intel's bundled libfabric ships only `efa/mlx/psm3/psmx2/rxm/shm/tcp/verbs`.
-
-The extension is the MPICH build (`MPI.mpich.cpython-312-*.so`, no RPATH, `ldd` resolves to the
-system MPICH) and `LD_LIBRARY_PATH` does not override it, so this is not something a user can
-configure away.
-
-Not yet verified: no multi-node mpi4py run was done, so "cannot use Slingshot" is inferred from the
-provider list rather than measured.
 
 ### E2. The #6 / #13 GPU-binding fix is doubly opt-in and undocumented
 
@@ -175,15 +160,13 @@ was attributed to the container is placement.
 ## Suggested order
 
 1. **E1** (`fi_info`) — trivial to verify, trivial to fix, unblocks everyone else's diagnosis.
-2. **E4** (`mpi4py` on Intel MPI) — same root cause as E1, so they fix together; highest impact
-   of the container-side findings if the inference holds.
-3. **E3** (cache defaults) — largest user impact; carries its own reproduction.
-4. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
+2. **E3** (cache defaults) — largest user impact; carries its own reproduction.
+3. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
    be dropped.
-5. **G1** (guide `MIOPEN_USER_DB` typo + missing JIT cache vars) — smallest, fully verified, and
+4. **G1** (guide `MIOPEN_USER_DB` typo + missing JIT cache vars) — smallest, fully verified, and
    fixes the user-facing half of E3 without waiting on a container release.
-6. **E2** (ENTRYPOINT under `exec`) — now mostly a documentation ask; needs a maintainer decision
+5. **E2** (ENTRYPOINT under `exec`) — now mostly a documentation ask; needs a maintainer decision
    on whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default.
-7. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
-8. Comments on **#20** and **#30**, and the reframing question on **#28**.
-9. Documentation items D1–D4, then P1/P2 to the service desk.
+6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
+7. Comments on **#20** and **#30**, and the reframing question on **#28**.
+8. Documentation items D1–D4, then P1/P2 to the service desk.
