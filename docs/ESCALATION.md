@@ -24,9 +24,14 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 
 ## File on the container repo — 3 new issues
 
-### E1. `fi_info` / `fi_pingpong` shadowed by Intel MPI shims — highest confidence
+### E1. `fi_info` / `fi_pingpong` shadowed by Intel MPI shims — highest confidence, low severity
 
-No existing issue. Two-line reproducer, no interpretation required.
+No existing issue. Two-line reproducer, no interpretation required — the most certain finding here,
+though not the most important one. Nothing breaks; it costs a diagnostic.
+
+Verified on a GPU node that the shadowed binary works and enumerates all 4 CXI NICs
+(`cxi0`–`cxi3`), so the shadowing does deny users real information rather than hiding a tool that
+would not have worked anyway.
 
 ```console
 $ singularity exec <full-or-plus>.sif fi_info --version
@@ -159,8 +164,9 @@ was attributed to the container is placement.
 
 ## Suggested order
 
-1. **E1** (`fi_info`) — trivial to verify, trivial to fix, unblocks everyone else's diagnosis.
-2. **E3** (cache defaults) — largest user impact; carries its own reproduction.
+1. **E3** (cache defaults) — largest user impact; carries its own reproduction.
+2. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
+   restores the first tool anyone reaches for when debugging the fabric.
 3. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
    be dropped.
 4. **G1** (guide `MIOPEN_USER_DB` typo + missing JIT cache vars) — smallest, fully verified, and

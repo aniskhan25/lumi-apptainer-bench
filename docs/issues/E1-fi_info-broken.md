@@ -36,6 +36,29 @@ The wrapper comes from `impi-rt` 2021.18.1, pulled in transitively by `oneccl` 2
 `full` and `plus` only — the two variants with the venv. `libfabric`, `mpich` and `torch` all
 return `libfabric: 2.1.0`. `fi_pingpong` is shadowed the same way.
 
+## What the shadowing costs
+
+The hidden binary is not merely present, it is fully functional. Inside the container on a GPU node
+it enumerates every CXI NIC:
+
+```console
+$ srun -N1 -n1 --gpus-per-node=1 singularity exec "$SIF" /usr/bin/fi_info -p cxi
+provider: cxi
+    fabric: cxi
+    domain: cxi0
+... (cxi0, cxi1, cxi2, cxi3 — all 4 found)
+
+$ srun ... singularity exec "$SIF" fi_info -p cxi          # what a user actually gets
+/opt/venv/bin/fi_info: line 34: /opt/mpi/libfabric/bin/fi_info: No such file or directory
+```
+
+**Severity, stated honestly:** this is not critical. No workload fails, and there is no performance
+effect — `fi_info` is a diagnostic, so it only matters once something else has gone wrong. The
+argument for fixing it is the ratio: the fix is one line, the risk is nil, and the failure falls on
+the first command anyone runs when investigating the fabric — the same subject as open issues #20,
+#28 and #30. A user hitting it reasonably concludes the libfabric tools were not shipped, and then
+has no way to enumerate providers from inside the container.
+
 ## Fix
 
 `rm -f /opt/venv/bin/fi_info /opt/venv/bin/fi_pingpong` at build time, or drop `oneccl` if it is
