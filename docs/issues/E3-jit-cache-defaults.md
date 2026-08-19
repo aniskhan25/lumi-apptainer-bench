@@ -1,124 +1,75 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
-**Title:** Set per-node JIT cache defaults in the image (Triton/Inductor caches on shared storage corrupt at scale)
+**Title:** Set node-local JIT cache defaults in the image — Triton and C++ extension caches land on `$HOME`
 
 ---
 
 ## Summary
 
 The image sets none of `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR`, `TORCH_EXTENSIONS_DIR` or
-`MIOPEN_USER_DB_PATH`, so each falls back to its framework default. Measured inside the `full`
-image, those defaults are split between `$HOME` and node-local `/tmp`:
+`MIOPEN_USER_DB_PATH`, so each falls back to a framework default. Two of them land on `$HOME`, which
+on LUMI is Lustre with a 20 GB quota, shared by every node in the job.
 
-| Variable | Default in this image | Shared across nodes? |
-| --- | --- | --- |
-| `TRITON_CACHE_DIR` | `/users/$USER/.triton/cache` | **yes** (`$HOME`) |
-| `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | **yes** (`$HOME`) |
-| `MIOPEN_USER_DB_PATH` | `~/.config/miopen/` | **yes** (`$HOME`) |
-| `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no (node-local) |
-
-Two problems follow. The `$HOME` defaults put JIT artifacts on a shared, quota-limited filesystem
-that every LUMI guide tells users to stay off. And once a user acts on that advice and redirects
-caches to `/scratch`, they land on a genuine failure: at 128 ranks a shared Inductor cache on
-Lustre produced a hard `InductorError` that killed a rank, which in a distributed job hangs the
-rest at the next collective.
-
-Setting per-node defaults in the image would remove the failure class for every user. It is
-invisible below roughly 64 ranks, so users hit it only after scaling up, and the error message does
-not name its cause.
-
-## Reproduction
-
-`20260513_121430`, 16 nodes / 128 ranks / 8 ranks per node, 24 forced Inductor compilations per
-rank against a cold cache. The two arms are identical except for cache location:
-
-| Cache location | Ranks failing | Warnings | Compile time/rank | Result |
-| --- | --- | --- | --- | --- |
-| Lustre (`/scratch/...`) | **1 of 128** | 80 across 9 ranks | 42.0–43.2 s | **fail** |
-| per-node `/tmp` | none | **0** | 28.3–28.5 s | pass |
-
-Jobs 20684269 (Lustre) and 20684441 (`/tmp`).
-
-The surviving ranks recover by recompiling; rank 20 escalated to a hard `InductorError`
-wrapping a `SubprocException` from the Triton compile worker for `triton_poi_fused_add_gelu_0`
-and did not recover. So the failure is probabilistic — its rate scales with how much a job
-compiles, which is why it is invisible in short tests.
-
-Note that this arm set `TORCHINDUCTOR_CACHE_DIR` explicitly. The default would have been
-node-local, so this is not the out-of-the-box configuration — see "How users reach the failing
-configuration" below.
-
-## Mechanism (upstream, but the container controls the mitigation)
-
-`torch/_inductor/codecache.py`:
-
-- `write_atomic` (line 454) places its temp file in the **same directory as the target**:
-  `tmp_path = path.parent / f".{os.getpid()}.{threading.get_ident()}.tmp"`
-- `GuardedCache.iterate_over_candidates` (≈lines 1031–1044) lists that directory and `open()`s
-  **every** entry, with no filtering of temp files.
-
-So a reader lists the cache directory, sees another rank's in-flight `.tmp`, and by the time it
-opens it the writer has renamed it away:
-
-```
-[rank81] torch/_inductor/codecache.py:1040] FileNotFoundError: [Errno 2] No such file or directory:
-  '<lustre>/inductor/fxgraph/qz/fqzsuavdiy.../.45092.22875271438464.tmp'
-```
-
-Per-node `/tmp` fixes it for two compounding reasons: the directory is shared by 8 ranks instead
-of 128, and the `tmpfs` write→rename window is far narrower than Lustre's — consistent with the
-1.5× compile-time difference above.
-
-Warnings landed across `inductor/codecache` (70), `aotautograd` (6) and `fxgraph` (4).
-
-I am filing the reader-side behaviour separately against `pytorch/pytorch`; this issue is about
-the container's defaults, which are effective regardless of whether upstream changes.
-
-## How users reach the failing configuration
-
-The Inductor default is node-local, so a completely naive user does not hit the failure above.
-They are actively steered into it instead.
-
-The LUMI-AI-Guide sets, in **17 of its job scripts**, a block whose stated purpose is to keep
-caches off `$HOME`:
+## Reproduce
 
 ```bash
-# set MIOPEN temp folder
-MIOPEN_DIR=$(mktemp -d)
-export MIOPEN_CUSTOM_CACHE_DIR=$MIOPEN_DIR/cache
-export MIOPEN_USER_DB=$MIOPEN_DIR/config
+SIF=/appl/local/laifs/containers/lumi-multitorch-u24r70f21m50t210-20260807_115122/lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif
 
-# Set your TORCH_HOME cache to scratch to avoid saving to home directory
-export TORCH_HOME="/scratch/${SLURM_JOB_ACCOUNT}/${USER}/torch_home"
+# the image sets none of them
+singularity inspect --environment "$SIF" | grep -cE 'TRITON_CACHE|TORCHINDUCTOR|TORCH_EXTENSIONS|MIOPEN'
+
+# so where do they go?
+singularity exec "$SIF" python3 -c "
+from triton import knobs
+from torch._inductor.runtime.cache_dir_utils import cache_dir
+from torch.utils.cpp_extension import _get_build_directory
+print('TRITON_CACHE_DIR       ', knobs.cache.dir)
+print('TORCHINDUCTOR_CACHE_DIR', cache_dir())
+print('TORCH_EXTENSIONS_DIR   ', _get_build_directory('x', False).rsplit('/',1)[0])"
+
+df -hT "$HOME" | tail -1
 ```
 
-(from `05-multi-gpu-and-node/run_ddp_srun_4.sh` @ `3705c3c`; the 10-LLM-inference scripts do the
-same with `HF_HOME`.)
+```
+0
+TRITON_CACHE_DIR        /users/<user>/.triton/cache                      <- $HOME, Lustre
+TORCHINDUCTOR_CACHE_DIR /tmp/torchinductor_<user>                        <- node-local, fine
+TORCH_EXTENSIONS_DIR    /users/<user>/.cache/torch_extensions/py312_cpu  <- $HOME, Lustre
+... lustre 20G ... /pfs/lustrep2
+```
 
-So the ecosystem's guidance is explicit — *redirect caches to `/scratch`, do not write to
-`$HOME`* — and the block covers MIOpen's kernel cache and the torch hub cache but **none** of
-`TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR` or `TORCH_EXTENSIONS_DIR`. A user who notices those
-three are missing and completes the pattern by pointing them at `/scratch`, exactly as instructed
-for the others, has built the failing configuration. That is what our reproduction is.
+`MIOPEN_USER_DB_PATH` defaults to `~/.config/miopen/`, also `$HOME`.
 
-Meanwhile the two variables the guide leaves alone default to `$HOME`, which on LUMI is a 20 GB
-quota shared by all nodes of the job. `TORCH_EXTENSIONS_DIR` in particular is a build directory
-with lock files, written concurrently by every rank in the job.
+## Why it matters
 
-Either way the outcome is bad, and the user has no way to pick correctly from the current
-documentation.
+Triton's cache is where every compiled kernel lands, and `TORCH_EXTENSIONS_DIR` is a build directory
+with lock files. Both get written concurrently by every rank in the job, to one Lustre directory
+under a 20 GB quota.
 
-## Secondary benefit
+We measured the cost of a shared JIT cache directly: 128 ranks (16 nodes × 8), 24 forced Inductor
+compilations per rank, identical runs except cache location.
 
-Lustre-backed caching costs ~1.5× compile time even when nothing fails (42–43 s vs 28.3–28.5 s
-per rank for the same 24 kernels), with a tight ≈1 s spread across 128 ranks in both arms — so
-it is a systematic metadata/latency cost, not noise. Cache placement is a throughput question
-as well as a correctness one.
+| Cache location | Failing ranks | Warnings | Compile time/rank |
+| --- | --- | --- | --- |
+| shared, on Lustre | **1 of 128** | 80 across 9 ranks | 42.0–43.2 s |
+| node-local `/tmp` | none | 0 | 28.3–28.5 s |
 
-## Suggested change
+The one failing rank raised a hard `InductorError` and did not recover, which in a distributed job
+hangs the remaining ranks at the next collective. Lustre was also ~1.5× slower even when nothing
+failed. Jobs 20684269 and 20684441.
 
-Set the four variables in the image to per-node paths keyed by container identity, so an
-incompatible image cannot reuse another's artifacts and the compile cost is paid once per
-container per node rather than once per job:
+(Those runs were on `20260513_121430` and set `TORCHINDUCTOR_CACHE_DIR` explicitly, since its
+default is already node-local. The reader-side race behind the failure is upstream — filed
+separately against `pytorch/pytorch`.)
+
+Users are also steered toward the failing configuration: the LUMI-AI-Guide repeats a cache block in
+17 job scripts whose stated purpose is "to avoid saving to home directory", sending MIOpen's kernel
+cache to node-local temp and `TORCH_HOME` to `/scratch`, while covering none of the three
+torch/Triton JIT variables. Completing that pattern by pointing them at `/scratch` builds exactly the
+arm that failed above.
+
+## Suggested fix
+
+Set the four variables as image defaults, on node-local storage, keyed by container identity:
 
 ```bash
 LAIF_CACHE_ROOT=/tmp/laif-cache-${USER}/<container-id>
@@ -128,29 +79,17 @@ TORCH_EXTENSIONS_DIR=${LAIF_CACHE_ROOT}/extensions
 MIOPEN_USER_DB_PATH=${LAIF_CACHE_ROOT}/miopen
 ```
 
-`TRITON_CACHE_DIR`, `TORCH_EXTENSIONS_DIR` and `MIOPEN_USER_DB_PATH` change behaviour today (they
-move off `$HOME`). `TORCHINDUCTOR_CACHE_DIR` is already node-local by default; setting it
-explicitly is about pinning that guarantee and keying it by container, so a user redirecting caches
-does not silently break it.
+Two notes:
 
-Two caveats worth deciding on:
+1. Use `ENV`, not the `ENTRYPOINT` — `apptainer exec` does not run an `ENTRYPOINT`.
+2. The directories must be created per node inside the job step, not at build time.
 
-1. The directories must be created per node inside the job step, not at image build time.
-2. If this is done via the OCI `ENTRYPOINT`, it will not take effect for users launching with
-   `apptainer exec` — see the separate issue on the ENTRYPOINT/`exec` interaction. `ENV`
-   directives in the image apply under both `exec` and `run` and are the right vehicle here; only
-   the `mkdir` needs to happen in the step.
-
-If a default is not wanted, documenting the four variables — and stating that they must point at
-node-local storage, not `/scratch` — would still be a large improvement over the current state,
-where the only published guidance points the other way.
+Documenting the four variables would help, but a default is better: the problem is invisible at
+small scale and the only published guidance currently points at `/scratch`.
 
 ## Environment
 
-- Image: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif`
-- Digest: `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
-- PyTorch `2.10.0+rocm7.0` (LUMI build `20260513142306`), Triton `3.6.0`
-- LUMI `standard-g`, 16 nodes, 8 ranks/node
-- Defaults in the table measured inside the image itself (`triton.knobs.cache.dir`,
-  `torch._inductor.runtime.cache_dir_utils.cache_dir()`,
-  `torch.utils.cpp_extension._get_build_directory`, and `strings libMIOpen.so`)
+- `lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif`
+  (digest `d70ec87fda17e97ff3b3241bcb34774365bba5f7b9172a22b8fda0897213bc81`)
+- PyTorch 2.10.0+rocm7.0, Triton 3.6.0
+- `$HOME` on Lustre, 20 GB quota
