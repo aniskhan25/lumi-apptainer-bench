@@ -61,11 +61,11 @@ failed. Jobs 20684269 and 20684441.
 default is already node-local. The reader-side race behind the failure is upstream — filed
 separately against `pytorch/pytorch`.)
 
-Users are also steered toward the failing configuration: the LUMI-AI-Guide repeats a cache block in
-17 job scripts whose stated purpose is "to avoid saving to home directory", sending MIOpen's kernel
-cache to node-local temp and `TORCH_HOME` to `/scratch`, while covering none of the three
-torch/Triton JIT variables. Completing that pattern by pointing them at `/scratch` builds exactly the
-arm that failed above.
+Users are also steered toward the failing configuration. The LUMI-AI-Guide repeats a cache block in
+18 job scripts that sends MIOpen's caches to node-local `/tmp` (correctly, and created per node with
+`srun mkdir -p` — see `Lumi-supercomputer/LUMI-AI-Guide#108`) and `TORCH_HOME` to `/scratch`, while
+covering none of the three torch/Triton JIT variables. Extending that block by analogy with the
+`TORCH_HOME` line, rather than the MIOpen lines, builds exactly the arm that failed above.
 
 ## Suggested fix
 
@@ -82,7 +82,8 @@ MIOPEN_USER_DB_PATH=${LAIF_CACHE_ROOT}/miopen
 Two notes:
 
 1. Use `ENV`, not the `ENTRYPOINT` — `apptainer exec` does not run an `ENTRYPOINT`.
-2. The directories must be created per node inside the job step, not at build time.
+2. The directories must be created per node inside the job step, not at build time. The guide's
+   `srun mkdir -p` in #108 is the working precedent.
 
 ## Relationship to LUMI-AI-Guide #112
 

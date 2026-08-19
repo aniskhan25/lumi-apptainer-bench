@@ -74,13 +74,11 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 
 ## Comment on LUMI-AI-Guide #112 — "Document more environment variables"
 
-> Data for the three on the list, measured inside
-> `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`. The main point is that **the value
-> matters as much as documenting the name** — two of the three want node-local storage, not
-> `/scratch`.
+> The block merged in #108 is a good template for these three — same shape, same place. Two things
+> we measured that might be worth folding in.
 >
-> The image sets none of them, so they fall back to framework defaults, and the three are not
-> equivalent:
+> **1. The three are not equivalent.** Measured inside
+> `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`, which sets none of them:
 >
 > | Variable | Default | Shared across the job's nodes? |
 > | --- | --- | --- |
@@ -88,92 +86,41 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 > | `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | **yes** — same |
 > | `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no — already node-local |
 >
-> Reproduce:
->
 > ```bash
 > singularity exec "$SIF" python3 -c "
 > from triton import knobs
 > from torch._inductor.runtime.cache_dir_utils import cache_dir
 > from torch.utils.cpp_extension import _get_build_directory
-> print(knobs.cache.dir)
-> print(cache_dir())
-> print(_get_build_directory('x', False))"
+> print(knobs.cache.dir); print(cache_dir()); print(_get_build_directory('x', False))"
 > ```
 >
 > So `TRITON_CACHE_DIR` and `TORCH_EXTENSIONS_DIR` are the two that change behaviour today.
+> `TORCHINDUCTOR_CACHE_DIR` is worth setting anyway, to pin the guarantee rather than inherit it.
 >
-> **The caveat worth writing down.** The guide's existing cache block sends `TORCH_HOME` to
-> `/scratch` with the comment "to avoid saving to home directory". That is right for `TORCH_HOME`,
-> which is large and read-mostly, but wrong for JIT caches, which are many small files written
-> concurrently by every rank. Anyone extending the block by analogy would point these three at
-> `/scratch` and make things worse.
+> **2. Node-local, not `/scratch`.** The block above `TORCH_HOME` is the right model, not `TORCH_HOME`
+> itself. `TORCH_HOME` on `/scratch` is correct — large, read-mostly, genuinely shared. JIT caches are
+> the opposite: many small files, write-heavy, written concurrently by every rank. Extending the
+> `TORCH_HOME` line by analogy would make things worse, so the distinction may be worth stating
+> explicitly.
 >
-> We measured that arm: 128 ranks (16 nodes x 8), 24 forced Inductor compilations per rank,
-> identical except cache location.
+> We measured that arm: 128 ranks (16 nodes x 8), 24 forced Inductor compilations per rank, identical
+> except cache location.
 >
 > | Cache location | Failing ranks | Warnings | Compile time/rank |
 > | --- | --- | --- | --- |
-> | shared, on Lustre | 1 of 128 (hard `InductorError`, did not recover) | 80 across 9 ranks | 42.0-43.2 s |
+> | shared, on Lustre | 1 of 128 (hard `InductorError`, no recovery) | 80 across 9 ranks | 42.0-43.2 s |
 > | node-local `/tmp` | none | 0 | 28.3-28.5 s |
 >
 > In a distributed job the dead rank hangs the rest at the next collective. Lustre was also ~1.5x
 > slower even when nothing failed.
 >
-> Suggestion: add them to the existing per-node temp block rather than alongside `TORCH_HOME`, and
-> add `MIOPEN_USER_DB_PATH` to the list too (see #81 — there is a variable-name bug there).
+> Suggested addition, following #108 exactly:
 >
 > ```bash
-> JIT=$(mktemp -d)            # per node, inside the job step
-> export TRITON_CACHE_DIR=$JIT/triton
-> export TORCHINDUCTOR_CACHE_DIR=$JIT/inductor
-> export TORCH_EXTENSIONS_DIR=$JIT/extensions
-> ```
-
----
-
-## Comment on LUMI-AI-Guide #81 — "Document the correct setting of temp dir for MIOpen" (closed)
-
-> This may be worth reopening: the code that landed does not match what the issue prescribed.
->
-> The issue body specifies:
->
-> ```bash
-> export MIOPEN_USER_DB_PATH=$MIOPEN_DIR/config
-> ```
->
-> The scripts in the guide use:
->
-> ```bash
-> export MIOPEN_USER_DB=$MIOPEN_DIR/config
-> ```
->
-> `MIOPEN_USER_DB` is not read by MIOpen. Checked against the library shipped in the current
-> container (`libMIOpen.so.1.0.70002`), the only user-DB variable that exists is
-> `MIOPEN_USER_DB_PATH`:
->
-> ```console
-> $ strings /opt/rocm/lib/libMIOpen.so | grep -oE 'MIOPEN_[A-Z0-9_]*' | sort -u | grep -E 'DB|CACHE'
-> MIOPEN_CUSTOM_CACHE_DIR
-> MIOPEN_DEBUG_DISABLE_FIND_DB
-> MIOPEN_DISABLE_CACHE
-> MIOPEN_FIND_CONV_INSUFFICIENT_WORKSPACE_ALLOW_FINDDB_UPDATE
-> MIOPEN_SYSTEM_DB_PATH
-> MIOPEN_USER_DB_PATH
-> ```
->
-> `MIOPEN_USER_DB_PATH` appears 0 times in the repository; `MIOPEN_USER_DB` appears in 17 job
-> scripts.
->
-> Effect: `MIOPEN_CUSTOM_CACHE_DIR` is redirected as intended, so the kernel cache is fine. The user
-> performance database is not redirected and stays at MIOpen's default `~/.config/miopen/`. So the
-> permission-clash problem described in this issue is half-addressed — the half on `/tmp` is fixed,
-> the half on a shared `$HOME` is not.
->
-> One-line fix in each of the 17 scripts:
->
-> ```diff
-> -export MIOPEN_USER_DB=$MIOPEN_DIR/config
-> +export MIOPEN_USER_DB_PATH=$MIOPEN_DIR/config
+> export TRITON_CACHE_DIR="/tmp/triton-cache-${USER}"
+> export TORCHINDUCTOR_CACHE_DIR="/tmp/inductor-cache-${USER}"
+> export TORCH_EXTENSIONS_DIR="/tmp/torch-extensions-${USER}"
+> srun mkdir -p "$TRITON_CACHE_DIR" "$TORCHINDUCTOR_CACHE_DIR" "$TORCH_EXTENSIONS_DIR"
 > ```
 
 ---

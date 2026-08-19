@@ -42,7 +42,7 @@ apex `1.10.0`, Megatron-Core `0.15.0rc8`, aws-ofi-nccl `1.19.1-git-206c02c`, MI2
 | 4.10 | Minor items (`realpath` binds, login Python, 383 vs 191.5 TF/s) | Partly addressed |
 | §6 | Megatron-Core observations | Not tested; bundled version confirmed |
 
-Plus seven issues found that the report does not raise — see [Independent findings](#independent-findings).
+Plus six issues found that the report does not raise — see [Independent findings](#independent-findings).
 
 ---
 
@@ -289,9 +289,10 @@ out-of-the-box default is safe for that specific failure. Users are steered off 
 LUMI-AI-Guide repeats a cache block in 17 job scripts whose stated purpose is "to avoid saving to
 home directory", sending MIOpen's kernel cache to node-local temp and `TORCH_HOME` to `/scratch`,
 and covering none of the three torch/Triton JIT variables. Completing that pattern by pointing them
-at `/scratch` is precisely the configuration that failed. (The same block also exports
-`MIOPEN_USER_DB`, which MIOpen does not read — the variable is `MIOPEN_USER_DB_PATH`, verified
-against the shipped `libMIOpen.so` — so the user perf DB stays on `$HOME` regardless.)
+at `/scratch` is precisely the configuration that failed. (That block used to export `MIOPEN_USER_DB`, which MIOpen does not read — the variable is
+`MIOPEN_USER_DB_PATH`. Fixed upstream in `LUMI-AI-Guide#108`, merged 2026-08-17, which also switched
+to a deterministic per-user path created on every node with `srun mkdir -p`. Our earlier note on this
+was based on commit `3705c3c9`, which predates the fix.)
 
 **Setting safe per-node defaults in the image would remove that entire failure class for every
 user.** This is still the single highest-value change available.
@@ -343,9 +344,10 @@ for user-reported hangs and free to document.
 4. **Add an all-to-all test to the release suite** with ≥8 ranks/node across ≥2 nodes. The
    current suite has none, and its inter-node test runs one process per node, so it cannot
    reach endpoint-count-driven failures.
-5. **Fix the guide's cache block** — `MIOPEN_USER_DB` → `MIOPEN_USER_DB_PATH`, and add the three
-   torch/Triton JIT variables pointing at node-local storage (finding 3). Two lines, and it is the
-   user-side half of recommendation 1, available without a container release.
+5. **Add the three torch/Triton JIT variables to the guide's cache block**, pointing at node-local
+   storage (finding 3), following the pattern merged in `LUMI-AI-Guide#108`. Tracked upstream as
+   `LUMI-AI-Guide#112`. This is the user-side half of recommendation 1, available without a container
+   release.
 6. **Document `ROCR_USE_SLURM_LOCALID` / `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` and the `run`
    requirement** (finding 2). The binding feature currently activates for no documented workflow.
 7. **Point users at the per-release artifacts** (finding 4) and **file the fabric regression**
