@@ -53,30 +53,18 @@ Comments to add to existing `laifs-container-recipes` issues rather than filing 
 
 ---
 
-## Comment / question on #28 — "Multi-node `torch.distributed.init` fails."
+## Comment on #28 — "Multi-node `torch.distributed.init` fails."
 
-> Two observations from validating `20260513_121430` that may bear on this.
+> One data point from validating the current release, in case it is useful for scoping.
 >
-> **1. This may explain a separate user report.** A LUMI project reported a 32-rank expert
-> all-to-all failing during initialisation with an NCCL "unhandled system error" at 16 nodes, on
-> the **April** `20260415_130625` build — the same build this issue is about. We could not
-> reproduce that on the **May** build: 32-rank all-to-all groups spanning 4 nodes initialise and
-> exchange correctly, including 4 concurrent 32-rank meshes across 128 ranks, 2/2 runs, in ~33 s.
-> So their "EP=32 fails on the fabric" may simply be this issue rather than anything specific to
-> 32 ranks — worth considering if you are tracking user impact of #28.
->
-> **2. The build-to-build direction is inconsistent, which may matter for diagnosis.** This issue
-> reports April broken and March (`20260319_153422`) working. The same user report says April
-> worked for them and **May** regressed inter-node all-to-all with `PTLTE_NOT_FOUND`, which is
-> why they pinned April. Those two cannot both be a simple monotonic regression.
->
-> The more likely reading is that multi-node init stability depends on configuration as much as
-> on build — with #30 (`NCCL_NET_GDR_LEVEL`) and #20 (straggler rank / node state) being two
-> known configuration-dependent causes. If that is right, "which build is broken" is the wrong
-> question and the useful artefacts are the full environment plus node list from each failing
-> run.
->
-> For what it is worth we could not reproduce a cross-node all-to-all failure on the May build at
-> any group size (8/16/32) or node count (1/2/4/16), with rank-tagged correctness checking and
-> uneven/zero-token dispatch. Details and job IDs:
+> We could not reproduce a cross-node all-to-all or init failure at any group size (8/16/32) or
+> node count (1/2/4/16), with rank-tagged correctness checking and uneven/zero-token dispatch —
+> including four concurrent 32-rank meshes across 128 ranks, 2/2 runs, in ~33 s. Details and job
+> IDs:
 > https://github.com/aniskhan25/lumi-apptainer-bench/blob/feature/laif-container-validation/docs/FINDINGS.md
+>
+> Possibly relevant to the straggler-rank theory: omitting `device_id` from `init_process_group`
+> reliably hung us at 128 ranks once a rank held more than one communicator (first communicator
+> 13.9 s vs 1.14 s with `device_id`, second one never returning vs 0.29 s). Your reproducer already
+> passes `device_id`, so this is probably not your case — noting it because a single communicator
+> per rank survives the wrong guess, so the symptom only shows up in multi-communicator jobs.

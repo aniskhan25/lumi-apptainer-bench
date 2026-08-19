@@ -139,24 +139,6 @@ is where the mitigation belongs, since it controls the defaults.
 | --- | --- | --- |
 | `NCCL_NET_GDR_LEVEL=PHB` hangs multi-node collectives | **#30** (open) — "Setting NCCL_NET_GDR_LEVEL may cause jobs to hang" | Already known. Our independent confirmation (job 19624583: indefinite hang → 24 s once removed) could be added as a comment. |
 | Intermittent RCCL hangs, node-correlated | **#20** (open) — "RCCL communications sometimes hang with PyTorch DDP" | Add the `nid007xxx` correlation as a comment. #20 expected a fix in the ROCm 7 / PyTorch 2.10 release, which *is* the image we tested, so evidence that hangs persist there is directly useful. |
-| Multi-node init deadlock | **#28** (open) — "Multi-node `torch.distributed.init` fails." | See below — likely explains §4.4. |
-
-### #28 probably explains report §4.4
-
-#28 reports 2-node / 16-rank `init_process_group` hanging indefinitely on
-`lumi-multitorch-torch-u24r70f21m50t210-**20260415**` — the **April** build — while the older
-`20260319` build succeeds in ~35 s.
-
-Report §4.4's EP=32 initialisation failure was also on the **April** build. So the reporter's
-"32-rank all-to-all fails on the fabric" may be a manifestation of #28's April-build init
-deadlock rather than anything specific to 32 ranks. That is consistent with our result that
-EP=32 works on the May build, 2/2 at 128 ranks with four concurrent meshes.
-
-Worth noting for the maintainers: **#28 and report §4.1 point in opposite directions.** #28
-says April is broken and March works; §4.1 says April works and May is broken. Both cannot be
-a simple monotonic regression, which suggests multi-node init stability varies per build *and*
-per configuration — #30 (GDR level) and #20 (straggler rank) being two known configuration
-causes. That reframing is more useful to file as a question on #28 than as a new bug.
 
 ---
 

@@ -7,13 +7,17 @@ container that is current today.
 
 ```
 /appl/local/laifs/containers/lumi-multitorch-latest.sif
-  -> lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif
-sha256 f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4
+  -> lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif
+sha256 d70ec87fda17e97ff3b3241bcb34774365bba5f7b9172a22b8fda0897213bc81
 ```
 
-**Scope.** Latest container only — no A/B against the April build the report pinned. Up to
-16 nodes / 128 ranks. Pure PyTorch: no Megatron-Core, so findings that require it are marked
-untested rather than refuted.
+**Scope.** The current release only. No comparison against earlier builds — whether a finding is a
+regression is explicitly out of scope. Up to 16 nodes / 128 ranks. Pure PyTorch: no Megatron-Core,
+so findings that require it are marked untested rather than refuted.
+
+**Provenance.** The container-inspection findings below were verified on the image named above. The
+multi-node GPU measurements (§4.7, §4.2, §4.1/§4.4) were taken on `20260513_121430`, an earlier
+release, and have not been re-run on the current one; each is labelled where it appears.
 
 **Environment confirmed loaded inside the job:** PyTorch `2.10.0+rocm7.0` (LUMI build
 `20260513142306`), HIP `7.0.51831`, RCCL `2.26.6`, Triton `3.6.0`, flash-attn `2.8.4`,
@@ -140,17 +144,6 @@ error".
 **Hypotheses exhausted:** group size (8/16/32), node span (1/2/4/16), concurrent disjoint
 meshes (4), communicator population per rank (8), uneven and zero-token dispatch.
 
-**Likely reconciliation for 4.4.** It was observed on the **April** build — the one they
-pinned *after* the May regression in §4.1. This is the **May** build. The two findings may
-simply not be in tension: §4.4 an April problem the May build fixed, §4.1 the May regression
-that sent them back to April. The `aws-ofi-nccl` bump `1.18.0-git-c1b89cc → 1.19.1-git-206c02c`
-is the only comms-stack change between the builds and could cut both ways. Untested here by
-scope, and it does not need testing to be actionable: **EP=32 works on the image users get
-today**, which the report explicitly could not tell them.
-
-**Remaining leads:** Megatron's actual expert-dispatch path (its own buffer management and
-`all_to_all` variants, not plain `all_to_all_single`), and node placement — see 4.5.
-
 ---
 
 ## 4.5 — Long bootstrap: NOT REPRODUCED, and a confound identified
@@ -247,7 +240,7 @@ provider list, not measured. A 2-node bandwidth test with `FI_LOG_LEVEL=info` wo
 
 ### 2. GPU binding is inert under `apptainer exec` — container defect + docs
 
-The May build moved runtime variables from a SIF runscript to an OCI `ENTRYPOINT`
+The image sets runtime variables via an OCI `ENTRYPOINT`
 (`Containerfile:256–268`). `apptainer exec` does not run an ENTRYPOINT; only `run` does. Three
 arms at one node:
 

@@ -34,8 +34,7 @@ The wrapper comes from `impi-rt` 2021.18.1, pulled in transitively by `oneccl` 2
 ## Scope
 
 `full` and `plus` only — the two variants with the venv. `libfabric`, `mpich` and `torch` all
-return `libfabric: 2.1.0`. `fi_pingpong` is shadowed the same way. Same on `20260513_121430`, so
-not a new regression and not fixed in the current build.
+return `libfabric: 2.1.0`. `fi_pingpong` is shadowed the same way.
 
 ## Fix
 

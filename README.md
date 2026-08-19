@@ -15,8 +15,11 @@ container against the issues raised in the `project_465003047` experience report
 **Start here: [`docs/FINDINGS.md`](docs/FINDINGS.md)** — consolidated, evidence-backed
 response to the report, with job IDs and the container digest.
 
-Container under test: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430`
-(`sha256 f0de72f4…`), up to 16 nodes / 128 ranks, pure PyTorch (no Megatron-Core).
+Container under test: `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`
+(`sha256 d70ec87f…`, currently `lumi-multitorch-latest.sif`), up to 16 nodes / 128 ranks, pure
+PyTorch (no Megatron-Core). Current release only — regressions between builds are out of scope.
+Multi-node GPU measurements were taken on the earlier `20260513_121430` and are labelled as such
+in the reports.
 
 | # | Report finding | Status |
 | --- | --- | --- |
