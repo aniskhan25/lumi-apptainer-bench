@@ -141,5 +141,6 @@ The current state is a silent no-op, which is the difficult failure mode: nothin
 - Image: `lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif`
 - Digest: `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
 - LUMI `dev-g`, 1 node, 8 ranks
-- Verb/variable survey: LUMI-AI-Guide @ `3705c3c9a3ec0fd7f9e73980ab3cd41d29170c48`,
-  `docs.lumi-supercomputer.eu` search index as of 2026-08-06
+- Verb/variable survey: LUMI-AI-Guide `main` (27 scripts, 11 chapter READMEs) and the
+  `docs.lumi-supercomputer.eu` search index, both checked 2026-08-20. Entrypoint conditionals and
+  the opt-in variables are unchanged in `20260807_115122`.
