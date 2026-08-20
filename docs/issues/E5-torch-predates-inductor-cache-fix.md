@@ -57,6 +57,12 @@ directory:
 Jobs 20684269 / 20684441, measured on `20260513_121430`. Upstream's own report of this race came
 from 512-GPU distributed training, so the scale dependence matches.
 
+**A single-node reproduction does not work.** 8 ranks on one node, 12 forced compilations each,
+shared Lustre cache, cold: all 8 ranks finished clean with zero warnings. The race needs many
+concurrent writers, which is consistent with upstream seeing it at 512 GPUs. So the cheap check is
+the one-command grep above, not a reproduction — the race itself is already established upstream and
+does not need re-proving.
+
 Note the symptom differs slightly from upstream's: they saw `pickle data was truncated` from reading
 a partially written temp file, we saw `FileNotFoundError` from the writer renaming it away between
 `listdir` and `open`. Same race, different point in the writer's sequence, same fix.
