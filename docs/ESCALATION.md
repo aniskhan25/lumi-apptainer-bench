@@ -168,8 +168,11 @@ was attributed to the container is placement.
 2. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
    restores the first tool anyone reaches for when debugging the fabric.
 3. **E5** (torch 2.10.0 predates `pytorch#172144`) — do **not** file upstream, it is already fixed
-   there; the ask is that the LUMI torch build picks it up. Strongest of the container findings:
-   a named upstream commit, a two-line diff, and our 128-rank reproduction as evidence.
+   there; the ask is a two-line cherry-pick into the LUMI torch build. Strongest of the container
+   findings: a named upstream commit, a two-line diff, and our 128-rank reproduction as evidence.
+   Note the ask must be a backport, not "move to 2.11" — upstream drops ROCm 7.0 in the 2.11 line
+   (`ROCM_ARCHES` goes `["7.0","7.1"]` → `["7.1","7.2"]`), so 2.11 would need a ROCm bump and a new
+   image tag.
 4. **Guide #112 and #81 comments** — the guide-side half of E3, already tracked upstream. #112 asks
    for exactly the three JIT variables; the useful addition is that two of them want node-local
    storage rather than `/scratch`. #81 is closed but its implementation used `MIOPEN_USER_DB`, which

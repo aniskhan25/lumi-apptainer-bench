@@ -67,14 +67,38 @@ Note the symptom differs slightly from upstream's: they saw `pickle data was tru
 a partially written temp file, we saw `FileNotFoundError` from the writer renaming it away between
 `listdir` and `open`. Same race, different point in the writer's sequence, same fix.
 
+## Waiting for 2.11 is not a cheap option
+
+Upstream drops ROCm 7.0 in the 2.11 line, so moving to 2.11 is a coupled ROCm **and** PyTorch
+upgrade, not a version bump:
+
+| PyTorch | `ROCM_ARCHES` in `.github/scripts/generate_binary_build_matrix.py` |
+| --- | --- |
+| `release/2.10` | `["7.0", "7.1"]` |
+| `release/2.11` | `["7.1", "7.2"]` — 7.0 dropped |
+| `main` | `["7.2", "7.14"]` |
+
+These images are ROCm 7.0 (`u24r70...`), which 2.10 supports and 2.11 does not. So 2.11 would require
+at least ROCm 7.1 and a new image tag.
+
 ## Request
 
-Pick up `pytorch#172144` in the LUMI torch build — it is a two-line change — or state that it lands
-when the images move to 2.11.
+**Cherry-pick `pytorch#172144` into the 2.10 build.** It is two lines in
+`GuardedCache.iterate_over_candidates`, the shipped 2.10 has that function in the same shape, and
+these images already build torch from source
+(`2.10.0+rocm7.0.lumi.aif.20260807140531`) — so this is a patch to a build you control rather than a
+dependency bump:
+
+```python
+for path in sorted(os.listdir(subdir)):
+    if path.startswith("."):
+        continue  # Skip temp files from concurrent write_atomic() calls
+```
 
 Until then the practical mitigation is cache placement, which is the subject of the separate issue on
 JIT cache defaults: with the cache on node-local storage the directory is shared by 8 ranks instead of
-128 and the write-to-rename window is far narrower. That issue's urgency drops once this fix is in.
+128 and the write-to-rename window is far narrower. That issue's urgency drops once this patch is in,
+and it does not depend on the ROCm question at all.
 
 ## Environment
 
