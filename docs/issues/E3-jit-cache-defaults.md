@@ -58,8 +58,9 @@ hangs the remaining ranks at the next collective. Lustre was also ~1.5× slower 
 failed. Jobs 20684269 and 20684441.
 
 (Those runs were on `20260513_121430` and set `TORCHINDUCTOR_CACHE_DIR` explicitly, since its
-default is already node-local. The reader-side race behind the failure is upstream — filed
-separately against `pytorch/pytorch`.)
+default is already node-local. The underlying race is `pytorch#172144`, fixed upstream in the 2.11
+line but **not** in the 2.10.0 these images ship — see the separate issue on that. Node-local cache
+placement is the mitigation while on 2.10.)
 
 Users are also steered toward the failing configuration. The LUMI-AI-Guide repeats a cache block in
 18 job scripts that sends MIOpen's caches to node-local `/tmp` (correctly, and created per node with

@@ -86,8 +86,11 @@ exact exception was not reproduced; the mechanism behind it was.
 
 **Also:** Lustre caching costs ~1.5× compile time even when nothing fails.
 
-**Upstream.** The reader not skipping temp files is a PyTorch issue independent of LUMI and
-worth filing — see [`ESCALATION.md`](ESCALATION.md) U1.
+**Upstream, already fixed.** The reader not skipping temp files is `pytorch#172144`, merged
+January 2026. It is present in `v2.11.0`, `release/2.11` and `main`, and **absent from `v2.10.0`
+and `release/2.10`** — which is what these images ship (verified: the fix's marker comment appears
+0 times in the shipped `codecache.py`). So this is not an upstream issue to file but a build-content
+issue for the container: see [`ESCALATION.md`](ESCALATION.md) E5.
 
 ---
 

@@ -15,7 +15,7 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 | [`E1-fi_info-broken.md`](issues/E1-fi_info-broken.md) | `laifs-container-recipes` |
 | [`E2-entrypoint-not-run-under-exec.md`](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` |
 | [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
-| [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
+| [`E5-torch-predates-inductor-cache-fix.md`](issues/E5-torch-predates-inductor-cache-fix.md) | `laifs-container-recipes` |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
 | [`G2-guide-ch5-exec-snippet.md`](issues/G2-guide-ch5-exec-snippet.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
 | [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on recipes #20, #28, #30, #39 and guide #81, #112 |
@@ -167,8 +167,9 @@ was attributed to the container is placement.
 1. **E3** (cache defaults) — largest user impact; carries its own reproduction.
 2. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
    restores the first tool anyone reaches for when debugging the fabric.
-3. **U1** (PyTorch upstream) — the root cause behind E3; file so the mitigation can eventually
-   be dropped.
+3. **E5** (torch 2.10.0 predates `pytorch#172144`) — do **not** file upstream, it is already fixed
+   there; the ask is that the LUMI torch build picks it up. Strongest of the container findings:
+   a named upstream commit, a two-line diff, and our 128-rank reproduction as evidence.
 4. **Guide #112 and #81 comments** — the guide-side half of E3, already tracked upstream. #112 asks
    for exactly the three JIT variables; the useful addition is that two of them want node-local
    storage rather than `/scratch`. #81 is closed but its implementation used `MIOPEN_USER_DB`, which
