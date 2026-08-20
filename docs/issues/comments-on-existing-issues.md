@@ -165,6 +165,19 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 
 ## Comment on LUMI-AI-Guide #111 — "Not all VRAM can be used by PyTorch"
 
+> **STATUS: POSTED 2026-08-19.** A condensed version went up as the fourth comment on the issue,
+> carrying the load-bearing parts: ~1 GiB for the initial RCCL/communicator overhead plus ~0.65 GiB
+> per additional communicator per rank, the fact that none of it appears in
+> `torch.cuda.memory_allocated()`, and that it scales with communicator count rather than world size.
+> No maintainer reply yet.
+>
+> Not included, and still available if the thread continues: the per-world-size table below
+> (651.5 / 626.8 / 631.8 MiB at 16 / 64 / 128 ranks, which is the evidence that the cost is flat in
+> world size), the ~90 MiB HIP-context figure, and the `expandable_segments` no-op. The last of these
+> is the most likely to be useful, since PyTorch's own OOM message recommends setting it.
+>
+> The draft below is kept as written for reference.
+
 > We measured this on `20260513_121430` while investigating a user report that ran into it, so here
 > are numbers for the footnote. On the sizing question in the thread: the effect is small for a plain
 > DDP job and large for multi-dimensional parallelism, which may be worth reflecting in where it goes.

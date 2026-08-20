@@ -8,7 +8,9 @@ existing issue probably explains report §4.4.
 
 ## Drafts
 
-Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these are drafts only.
+Ready to paste, in [`docs/issues/`](issues/). Drafts only, **except** the LUMI-AI-Guide #111 comment,
+which was posted 2026-08-19 — see the status note in
+[`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md).
 
 | Draft | Target repo |
 | --- | --- |
