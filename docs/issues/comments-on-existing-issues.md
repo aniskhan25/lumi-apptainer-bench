@@ -3,76 +3,71 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 
 ---
 
-## Comment on #30 — "Setting `NCCL_NET_GDR_LEVEL` may cause jobs to hang"
+## #30 — "Setting `NCCL_NET_GDR_LEVEL` may cause jobs to hang" — DO NOT POST
 
-> Independent confirmation on `u24r70f21m50t210-20260513_121430`, in case another data point is
-> useful.
->
-> Our multi-node benchmark templates had `NCCL_NET_GDR_LEVEL=PHB` and
-> `NCCL_SOCKET_IFNAME=hsn0,hsn1,hsn2,hsn3` set together. A 2-node allreduce hung indefinitely;
-> removing both made the same job complete in 24 s (job 19624583). We now default them off and
-> keep them behind an explicit opt-in used only for deliberate fabric tuning.
->
-> Matches your observation that performance is fine without forcing the GDR level — we see no
-> measurable loss from leaving it unset.
+Checked 2026-08-20: 8 comments, active to 2026-07-27. The last comment already reaches our
+conclusion — *"the main point is that setting `NCCL_NET_GDR_LEVEL` should not be required anymore
+anyways."* Our independent confirmation (job 19624583, indefinite hang → 24 s once removed) is
+redundant. Kept here only as the provenance for why our templates default it off.
+
+Worth taking *from* that thread rather than adding to it: `FI_MR_CACHE_MONITOR=userfaultfd` is
+reported to have resolved a hang-before-training on some LUMI tickets. Untested by us, and a
+candidate if we see startup hangs again.
 
 ---
 
-## Comment on #20 — "RCCL communications sometimes hang with PyTorch DDP"
+## Comment on #20 — "RCCL communications sometimes hang with PyTorch DDP" — POSTABLE
 
-> Data point on whether this persists in the ROCm 7 / PyTorch 2.10 release you expected the fix
-> in. We are on `full-u24r70f21m50t210-20260513_121430` (PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`)
-> and still see intermittent hangs — but with a **node correlation** that may be worth checking
-> against your own failures.
+The only one of the three worth adding to: 0 comments, untouched since 2026-03-27, and labelled
+only for the `u24r64f21m43t29` generation. This issue expected a fix in the ROCm 7 / PyTorch 2.10
+release, so evidence from that line is new information.
+
+**Deliberately excludes the node-placement theory.** An earlier version of this draft argued that
+both our hangs landing on `nid007xxx` pointed at node state. A larger sample did not support it —
+across nine runs the run with the *highest* `nid007xxx` fraction passed and the one with the *lowest*
+failed, and no node was common to all failures. So the correlation was five data points and noise.
+Reporting it would have handed the maintainers a false lead.
+
+> A data point on whether this persists in the ROCm 7 / PyTorch 2.10 release you expected the fix
+> in. This issue is labelled for the `u24r64f21m43t29` builds; we see intermittent hangs on
+> `full-u24r70f21m50t210-20260513_121430` (PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`) too.
 >
 > Across a 5-run communicator-creation sweep (2/4/8/16 nodes, 8 ranks/node, up to 8 concurrent
 > world-spanning communicators per rank), two runs hung and three passed:
 >
-> | Job | Nodes | Node list | Result |
-> | --- | --- | --- | --- |
-> | 20724372 | 4 | `nid[007038-007041]` | hang (killed at 10 min) |
-> | 20711452 | 16 | `nid[007769-007784]` | hang (killed at 25 min) |
-> | 20724354 | 2 | `nid[005556-005557]` | pass, 37 s |
-> | 20724753 | 8 | `nid[006186-006193]` | pass, 45 s |
-> | 20724970 | 16 | `nid[005724-005729,006186-006195]` | pass, 47 s |
+> | Job | Nodes | Result |
+> | --- | --- | --- |
+> | 20724372 | 4 | hang (killed at 10 min) |
+> | 20711452 | 16 | hang (killed at 25 min) |
+> | 20724354 | 2 | pass, 37 s |
+> | 20724753 | 8 | pass, 45 s |
+> | 20724970 | 16 | pass, 47 s |
 >
-> Both hangs on `nid007xxx`; all three passes on `nid005xxx`/`nid006xxx`. The result is
-> non-monotonic in scale — 4 nodes hung while 8 and 16 passed — which argues against a
-> rank-count or configuration cause and for node placement.
+> We could not establish a cause. The result is non-monotonic in scale — 4 nodes hung while 8 and 16
+> passed — which argues against a rank-count or configuration cause, but we tested and rejected node
+> placement as an explanation, so we are not proposing one. Node lists are available if useful.
 >
-> Suggestion: if the `pytorch-ddp-multi-node` test failures are recorded with node lists, it may
-> be worth checking whether they cluster the same way. If they do, part of this is a node-state
-> problem rather than a container or PyTorch one, and `CUDA_LAUNCH_BLOCKING=1` may be masking a
-> different cause than assumed.
->
-> Separately, and possibly relevant to the straggler-rank theory: we found that omitting
-> `device_id` from `init_process_group` reliably hung us at 128 ranks once a rank held more than
-> one communicator (first communicator 13.9 s vs 1.14 s with `device_id`, second one never
-> returning vs 0.29 s). Your #28 reproducer already passes `device_id`, so this is probably not
-> your case — noting it because a single communicator per rank survives the wrong guess, so the
-> symptom only appears in multi-communicator jobs.
+> Separately, and possibly relevant to the straggler-rank theory: omitting `device_id` from
+> `init_process_group` reliably hung us at 128 ranks once a rank held more than one communicator
+> (first communicator 13.9 s vs 1.14 s with `device_id`, second one never returning vs 0.29 s). A
+> single communicator per rank survives the wrong guess, so the symptom only appears in
+> multi-communicator jobs — which may be why this reproduces for some users and not others.
 
 ---
 
-## Comment on #28 — "Multi-node `torch.distributed.init` fails."
+## #28 — "Multi-node `torch.distributed.init` fails." — DO NOT POST
 
-> One data point from validating the current release, in case it is useful for scoping.
->
-> We could not reproduce a cross-node all-to-all or init failure at any group size (8/16/32) or
-> node count (1/2/4/16), with rank-tagged correctness checking and uneven/zero-token dispatch —
-> including four concurrent 32-rank meshes across 128 ranks, 2/2 runs, in ~33 s. Details and job
-> IDs:
-> https://github.com/aniskhan25/lumi-apptainer-bench/blob/feature/laif-container-validation/docs/FINDINGS.md
->
-> Possibly relevant to the straggler-rank theory: omitting `device_id` from `init_process_group`
-> reliably hung us at 128 ranks once a rank held more than one communicator (first communicator
-> 13.9 s vs 1.14 s with `device_id`, second one never returning vs 0.29 s). Your reproducer already
-> passes `device_id`, so this is probably not your case — noting it because a single communicator
-> per rank survives the wrong guess, so the symptom only shows up in multi-communicator jobs.
+Checked 2026-08-20: 7 comments, and the last one (2026-04-23, from the reporter) is *"Training job
+on 16 nodes seems to run nice and stable!"* The thread has moved on. Our contribution was "we could
+not reproduce it either", which agrees with a resolved issue and adds nothing. Our runs were also on
+`20260513_121430`, so we could not have claimed the current release without re-running.
 
 ---
 
 ## Comment on LUMI-AI-Guide #112 — "Document more environment variables"
+
+**STATUS: noted by the guide maintainer (2026-08-20).** Kept for reference; no further action
+needed unless they ask for the underlying data.
 
 > The block merged in #108 is a good template for these three — same shape, same place. Two things
 > we measured that might be worth folding in.
@@ -126,6 +121,8 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 ---
 
 ## Comment on laifs-container-recipes #39 — "vLLM and compressed-tensors dependency conflict"
+
+**STATUS: shared with the container maintainer (2026-08-20).** Kept for reference.
 
 > Two data points on the current release, `20260807_115122`.
 >
