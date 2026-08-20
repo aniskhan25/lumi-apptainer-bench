@@ -17,6 +17,7 @@ Ready to paste, in [`docs/issues/`](issues/). Nothing has been filed — these a
 | [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
 | [`U1-pytorch-inductor-cache-reader.md`](issues/U1-pytorch-inductor-cache-reader.md) | `pytorch/pytorch` |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
+| [`G2-guide-ch5-exec-snippet.md`](issues/G2-guide-ch5-exec-snippet.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
 | [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on recipes #20, #28, #30, #39 and guide #81, #112 |
 
 ---
@@ -179,4 +180,6 @@ was attributed to the container is placement.
    issue.
 6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
 7. Comments on **#20** and **#30**, and the reframing question on **#28**.
-8. Documentation items D1–D4, then P1/P2 to the service desk.
+8. **G2** (guide chapter 5 `exec` snippet) — cosmetic, no functional effect today; file only if a
+   one-word consistency fix is welcome.
+9. Documentation items D1–D4, then P1/P2 to the service desk.
