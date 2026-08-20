@@ -39,6 +39,27 @@ TORCH_EXTENSIONS_DIR    /users/<user>/.cache/torch_extensions/py312_cpu  <- $HOM
 
 `MIOPEN_USER_DB_PATH` defaults to `~/.config/miopen/`, also `$HOME`.
 
+And this is not only the computed default — it is where artifacts actually accumulate. On an account
+that has run GPU work with `TRITON_CACHE_DIR` unset:
+
+```console
+$ find ~/.triton -type f | wc -l
+386
+$ du -sh ~/.triton
+7.9M
+$ find ~/.triton -type f | head -1
+~/.triton/cache/UOWGAR7HQECQIKTN5LUUT5VSLTIKCRC3YJP3VNY7BQ7WNZ3I26XA/_gt_bwd_dst_pass.hsaco
+$ find ~/.triton -type f -printf '%TY-%Tm\n' | sort | uniq -c
+      1 2026-04
+     10 2026-05
+     36 2026-06
+    339 2026-07
+```
+
+Those are real compiled AMD GPU binaries (`.hsaco`, plus `.llir` and `.json`), accumulated across
+months of ordinary use. So the `$HOME` default is what users are living with, not a theoretical
+path.
+
 ## Why it matters
 
 Triton's cache is where every compiled kernel lands, and `TORCH_EXTENSIONS_DIR` is a build directory
