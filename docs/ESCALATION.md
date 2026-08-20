@@ -172,8 +172,11 @@ was attributed to the container is placement.
    for exactly the three JIT variables; the useful addition is that two of them want node-local
    storage rather than `/scratch`. #81 is closed but its implementation used `MIOPEN_USER_DB`, which
    MIOpen does not read.
-5. **E2** (ENTRYPOINT under `exec`) — now mostly a documentation ask; needs a maintainer decision
-   on whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default.
+5. **E2** (ENTRYPOINT under `exec`) — weakest of the three, and optional. Verified against
+   LUMI-AI-Guide `main`: every GPU workload uses `run`, the two opt-in variables appear nowhere, and
+   the guide binds from `LOCAL_RANK` in the application, so guide followers are unaffected. What
+   remains is a dead feature and a documentation gap. Could be a note on the release rather than an
+   issue.
 6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
 7. Comments on **#20** and **#30**, and the reframing question on **#28**.
 8. Documentation items D1–D4, then P1/P2 to the service desk.

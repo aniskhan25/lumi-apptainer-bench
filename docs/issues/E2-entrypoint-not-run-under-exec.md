@@ -66,59 +66,60 @@ not happen — so the cause is the `ENTRYPOINT` not executing, not an unset vari
 row shows the same entrypoint working correctly when reached via `run`, and additionally setting
 `HIP_VISIBLE_DEVICES`, which the launcher-side path does not.
 
-## Scope: which launch verb is documented, and whether the variables are ever set
+## Verified against LUMI-AI-Guide `main`
 
-I originally assumed `exec` was the documented pattern. It is not, for the LAIF images, so the
-first condition affects fewer users than I thought — but the second condition then removes almost
-everyone who is left.
+Checked on `main` (not a pinned commit), 27 scripts and 11 chapter READMEs:
 
-**Launch verb.** Every runnable example for these images uses `run`:
+| | count |
+| --- | --- |
+| `singularity run` | 27 |
+| `singularity exec` | 3 — all build helpers (`create_squashfs.sh`, `create_venv.sh`, `install_venv.sh`), no GPU workload |
+| `ROCR_USE_SLURM_LOCALID` | **0** |
+| `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` | **0** |
+| `ROCR_VISIBLE_DEVICES` / `HIP_VISIBLE_DEVICES` | **0** |
 
-- `docs.lumi-supercomputer.eu/laif/software/ai-environment/` — `singularity run $SIF …` in all
-  three examples.
-- LUMI-AI-Guide @ `3705c3c` — **20 of 20** launch commands across all ten chapters use
-  `singularity run`.
+So every GPU workload in the guide uses `run`, and the guide sets neither opt-in variable anywhere —
+in scripts or in prose. The `docs.lumi-supercomputer.eu` LAIF page likewise uses `run` throughout.
+No guide issue covers this; the three binding-related issues (#95, #41, #46) are all about *CPU*
+bindings and are closed.
 
-`exec` appears in general LUMI container documentation
-(`runjobs/scheduled-jobs/container-jobs/`, `runjobs/scheduled-jobs/python/`), which is not
-LAIF-specific, and once in the AI Guide itself: `05-multi-gpu-and-node/README.md` line 297 shows
+**And the guide does not need this feature.** Its 8-task-per-node scripts bind in the application
+instead:
 
 ```bash
-srun --cpu-bind=mask_cpu=$CPU_BIND_MASKS,v singularity exec ...
+srun --cpu-bind=v,mask_cpu=$CPU_BIND_MASKS singularity run $SIF bash -c \
+  "export RANK=\$SLURM_PROCID && export LOCAL_RANK=\$SLURM_LOCALID && python ddp_visiontransformer.py"
 ```
 
-as an abbreviated illustration of the `--cpu-bind=v` flag, five lines below the same command
-written with `run`. That inconsistency is the point: the verb is being treated as interchangeable
-in the guide's own prose, and nothing tells a reader it changes the container's runtime behaviour.
+The training script selects its device from `LOCAL_RANK`, so the container's binding logic
+contributes nothing and its absence costs nothing. Guide followers are unaffected.
 
-**The opt-in variables.** `singularity inspect --environment` on the `full` image sets neither
-`ROCR_USE_SLURM_LOCALID` nor `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` (nor `ROCR_VISIBLE_DEVICES` or
-`HIP_VISIBLE_DEVICES`). Neither name appears anywhere in the release notes, in the LUMI
-documentation search index, or in any LUMI-AI-Guide script.
+## Severity, stated honestly
 
-Concretely: the guide's own `05-multi-gpu-and-node/run_ddp_srun_4.sh` runs 8 tasks per node under
-`singularity run` and sets neither variable, so the binding branch does not fire there either.
-That example works only because `ddp_visiontransformer.py` selects its device from `LOCAL_RANK` —
-the container's binding logic contributes nothing.
+This is **not a bug for anyone following the documented path**. It is a dead feature plus a
+documentation gap:
 
-So the mechanism delivered for #6 and #13 currently reaches only users who both use `run` and
-independently discovered two undocumented variable names.
+- The mechanism delivered for #6 and #13 requires `run` **and** two variables that appear in no
+  documentation, no release note, and no example. As shipped it activates for no documented
+  workflow.
+- Users outside the guide — the experience report's author, and our own harness — do use `exec`, and
+  someone who assumes the container binds devices gets all 8 GCDs per rank.
+- One small trap remains in the guide: `05-multi-gpu-and-node/README.md:297` shows
+  `srun --cpu-bind=mask_cpu=$CPU_BIND_MASKS,v singularity exec ...` as an abbreviated illustration of
+  the `--cpu-bind=v` flag, five lines below the same command written with `run`. A reader copying that
+  line switches launch verb without being told it changes container behaviour. That is a one-word fix
+  in the guide, better raised there than here.
 
-## Impact
+Of the container-side findings this is the weakest, and it may not warrant its own issue — the ask
+below could equally be a note appended to whichever release documents the entrypoint.
 
-Two distinct groups:
+## Note on the torchrun pattern
 
-- **`exec` users who rely on the container to bind devices** get all 8 GCDs visible to every rank.
-  A script that does not select a device explicitly then places all 8 ranks on GCD 0 and leaves 7
-  idle. This is the pattern the user report we were investigating used.
-- **Everyone else** gets no binding either, because the opt-in variables are unset — they are
-  simply unaffected, because the documented examples bind from `LOCAL_RANK` in the application.
-
-Scope note, to avoid overstating this: with `torchrun` under a single `srun` task, `SLURM_LOCALID`
-is 0 for that task, so the entrypoint would not bind devices even under `run` with the variables
-set, and torchrun workers select their device from `LOCAL_RANK` — where seeing 8 devices is normal
-and harmless. The impact is specific to launch patterns that use `--ntasks-per-node=8` and expect
-the container to do the binding.
+With `torchrun` under a single `srun` task, `SLURM_LOCALID` is 0 for that task, so the entrypoint
+would not bind devices even under `run` with both variables set — and torchrun workers select their
+device from `LOCAL_RANK`, where seeing 8 devices is normal and harmless. So the only pattern where
+the feature would do anything is `--ntasks-per-node=8` with a script that does not select a device
+itself.
 
 ## Request
 
