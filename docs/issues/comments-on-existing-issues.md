@@ -22,6 +22,14 @@ The only one of the three worth adding to: 0 comments, untouched since 2026-03-2
 only for the `u24r64f21m43t29` generation. This issue expected a fix in the ROCm 7 / PyTorch 2.10
 release, so evidence from that line is new information.
 
+**Honest weight of this comment.** Half of it is an uncaused observation and half is a question. The
+2-of-5 hangs have no established cause: the node-placement hypothesis was tested and rejected, and
+the device-binding fix predates both hangs (committed 02:53, hangs began 04:26 and 10:21 the same
+day) so it does not explain them either. The original run logs are also no longer on scratch, so if
+the maintainers ask for output we can supply only the job IDs and node lists recorded in
+[`PHASE5_COMM_COUNT_RESULTS.md`](../PHASE5_COMM_COUNT_RESULTS.md). Post it as a data point that the
+r70 line still hangs, or not at all — it will not help anyone debug.
+
 **Deliberately excludes the node-placement theory.** An earlier version of this draft argued that
 both our hangs landing on `nid007xxx` pointed at node state. A larger sample did not support it —
 across nine runs the run with the *highest* `nid007xxx` fraction passed and the one with the *lowest*
@@ -58,6 +66,10 @@ Reporting it would have handed the maintainers a false lead.
 > one mattered. Code that already calls `torch.cuda.set_device(local_rank)` before its first
 > collective is probably unaffected. Worth checking whether the failing jobs in this issue bind the
 > device at all.
+>
+> Note these are **two separate observations, not one explanation**. The device fix landed before both
+> of the hangs above ran (fix committed 02:53, hangs started 04:26 and 10:21 the same day), so the
+> 2-of-5 hangs are not accounted for by it. We have no cause for those.
 
 ---
 
