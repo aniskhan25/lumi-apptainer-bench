@@ -22,6 +22,32 @@ The only one of the three worth adding to: 0 comments, untouched since 2026-03-2
 only for the `u24r64f21m43t29` generation. This issue expected a fix in the ROCm 7 / PyTorch 2.10
 release, so evidence from that line is new information.
 
+**Reproduction attempt, 2026-08-21 — did not reproduce.** A standalone minimal script (no harness
+involved): bind the device, `init_process_group` with `device_id`, then create 8 world-spanning
+groups and force each communicator into existence with an `all_reduce`. 4 nodes / 32 ranks on
+`20260807_115122`, three consecutive attempts in one allocation, each capped at 5 minutes.
+
+| Attempt | Result | Elapsed |
+| --- | --- | --- |
+| 1 | pass | **3 m 38 s** |
+| 2 | pass | 24 s |
+| 3 | pass | 24 s |
+
+Job 21432542, nodes `nid[007006-007009]` — inside the `nid007xxx` range where both original hangs
+landed, which is further evidence against the placement theory that was already rejected.
+
+Three passes do not refute a ~40% failure rate (≈22% likely by chance), so the 2-of-5 record stands
+as the stronger evidence and this changes nothing about it. Two things worth noting anyway:
+
+- **Cold start is large.** The first attempt took 3 m 38 s and the next two 24 s each, on the same
+  nodes. So "hang" and "slow first collective" are separated by minutes, not seconds, and a timeout
+  set too tight would misclassify one as the other. The original failures ran 10 and 25 minutes
+  before being killed, so they are well clear of this — but it is the reason to state elapsed times
+  rather than just pass/fail.
+- **The minimal script may not be the trigger.** The original runs used our `comm_count` test, which
+  also does communicator churn and memory sampling per step. A simpler script exercising only
+  creation may miss whatever the trigger is.
+
 **Honest weight of this comment.** Half of it is an uncaused observation and half is a question. The
 2-of-5 hangs have no established cause: the node-placement hypothesis was tested and rejected, and
 the device-binding fix predates both hangs (committed 02:53, hangs began 04:26 and 10:21 the same

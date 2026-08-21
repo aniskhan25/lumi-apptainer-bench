@@ -106,6 +106,23 @@ container without the node lists from those runs.
 
 ---
 
+## Follow-up (2026-08-21): the intermittent hang did not reproduce
+
+A standalone minimal reproducer — 8 world-spanning communicators per rank, device bound with
+`device_id`, no harness code — passed 3/3 at 4 nodes / 32 ranks on `20260807_115122` (job 21432542,
+`nid[007006-007009]`). First attempt 3 m 38 s, then 24 s and 24 s.
+
+Three passes do not refute the 2-of-5 above; at a ~40% rate three passes are ~22% likely by chance.
+The hang therefore remains **unexplained and unreproduced on demand**. Also of note: the allocation
+was in the `nid007xxx` range where both original hangs landed and passed anyway, which is another
+strike against the placement theory retracted below.
+
+The cold-start spread is worth recording separately: 3 m 38 s versus 24 s on identical nodes means a
+slow first collective and a hang are minutes apart, so elapsed time — not just pass/fail — is what
+distinguishes them.
+
+---
+
 ## Result 4 — a real gotcha: omitting `device_id` hangs at scale
 
 Found while chasing Result 3, and worth passing on independently.
