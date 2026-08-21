@@ -1,30 +1,74 @@
-# Escalation: what to file, where, and what is already covered
+# Escalation status: issues, comments, and what is left
 
-Checked against all 38 issues in `lumi-ai-factory/laifs-container-recipes` (full repo, not just
-the release label) on 2026-08-06. Several findings turned out to be already reported, and one
-existing issue probably explains report §4.4.
+Single index for everything raised or considered. Last revised 2026-08-21.
+
+Provenance note: the `laifs-container-recipes` issue sweep was done 2026-08-06; guide-repo and
+container state were re-checked against `main` / `20260807_115122` on 2026-08-20 and 2026-08-21.
+Several drafts changed materially on re-checking — where that happened it is recorded in the draft
+itself rather than quietly edited away.
 
 ---
 
-## Drafts
+## 1. Issues
 
-Ready to paste, in [`docs/issues/`](issues/). Drafts only, **except** the LUMI-AI-Guide #111 comment,
-which was posted 2026-08-19 — see the status note in
-[`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md).
+| # | What | Target | Status |
+| --- | --- | --- | --- |
+| **E1** | [`fi_info`/`fi_pingpong` shadowed by Intel MPI shims](issues/E1-fi_info-broken.md) | `laifs-container-recipes` | **Not filed — candidate.** Low severity, one-line fix. Strengthened 2026-08-21: it also *skips* our `cxi_provider_visible` gate, so it blinds automated fabric checks |
+| **E2** | [#6/#13 GPU-binding fix is doubly opt-in](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` | **Not filed — optional.** Verified against guide `main`: no documented workflow is affected. Dead feature + docs gap |
+| **E3** | [JIT cache defaults](issues/E3-jit-cache-defaults.md) | — | **Handled** via guide #112. Measurement record retained |
+| **E5** | [torch 2.10.0 predates `pytorch#172144`](issues/E5-torch-predates-inductor-cache-fix.md) | `laifs-container-recipes` | **Parked.** Fix is in the 2.11 line, which needs ROCm ≥7.1; arrives free with the coming ROCm upgrade |
+| **G2** | [Guide ch.5 uses `exec` in one snippet](issues/G2-guide-ch5-exec-snippet.md) | `LUMI-AI-Guide` | **Not filed — cosmetic.** No functional effect today |
+| **T1** | [Add a multi-node all-to-all test](issues/T1-add-alltoall-test.md) | `laifs-container-tests` | **Not filed — unexamined.** Never re-checked against that repo's current state |
+| ~~E4~~ | mpi4py on Intel MPI | — | **Withdrawn.** Benign in the realistic import order; folded into E1 as a note |
+| ~~G1~~ | `MIOPEN_USER_DB` typo | — | **Withdrawn.** Fixed upstream in guide #108 before we raised it |
+| ~~U1~~ | Inductor cache reader | — | **Withdrawn.** Already fixed upstream; became E5 |
 
-| Draft | Target repo |
+## 2. Comments
+
+| Target | Status |
 | --- | --- |
-| [`E1-fi_info-broken.md`](issues/E1-fi_info-broken.md) | `laifs-container-recipes` |
-| [`E2-entrypoint-not-run-under-exec.md`](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` |
-| [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | *handled via guide #112 — not filed* |
-| [`E5-torch-predates-inductor-cache-fix.md`](issues/E5-torch-predates-inductor-cache-fix.md) | *parked pending the ROCm upgrade* |
-| [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
-| [`G2-guide-ch5-exec-snippet.md`](issues/G2-guide-ch5-exec-snippet.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
-| [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on recipes #20, #28, #30, #39 and guide #81, #112 |
+| **guide #111** — VRAM not all usable | **POSTED** 2026-08-19. No maintainer reply yet |
+| **guide #112** — document more env vars | **Noted** by the guide maintainer |
+| **recipes #39** — vLLM/compressed-tensors | **Shared** with the container maintainer |
+| **recipes #20** — RCCL hangs with DDP | **POSTABLE — the only one left.** 0 comments, stale since 2026-03-27, labelled only for the `u24r64` generation. Rewritten to drop the `nid007xxx` placement theory, which a larger sample contradicted |
+| **recipes #28** — multi-node init fails | **DO NOT POST.** Reporter's last comment reports 16 nodes stable |
+| **recipes #30** — `NCCL_NET_GDR_LEVEL` | **DO NOT POST.** Last comment already states our conclusion |
+| ~~guide #81~~ — MIOpen temp dir | **Dropped.** Resolved by #108 |
+
+## 3. TODO
+
+**Escalation**
+- [ ] Post the **#20** comment — the only remaining one worth sending
+- [ ] Decide on **E1** (cheap, low severity) and **E2**/**G2** (optional)
+- [ ] Re-check **T1** against `laifs-container-tests` before filing, given that five of nine drafts
+      collapsed on contact with their target repos
+- [ ] Unpark **E5** if the ROCm upgrade slips, or close it once 2.11 lands
+
+**Gate suite**
+- [ ] Run phases 4–5 (`jit_cache` at 64+ ranks, `comm_count`) against `20260807_115122` — 8–16 nodes,
+      never run against this image
+- [ ] Recalibrate the bandwidth floors from repetitions. EP=16 measured 64% above the frozen
+      baseline on a single sample; the floors are provisional
+- [ ] Close the gate-design gap: `triton_cache_off_lustre` / `inductor_cache_off_lustre` pass because
+      *our* template sets `LAIF_CACHE_MODE=tmp`, so the suite does not detect the `$HOME` default.
+      Needs a probe arm that deliberately clears the cache variables
+- [ ] Make the `fi_info` probe distinguish *shadowed* from *absent* by also recording
+      `/usr/bin/fi_info`, so the failure is diagnosable from the gate output alone
+
+**Untested report findings**
+- [ ] §4.3 `HSA_STATUS_ERROR_OUT_OF_RESOURCES` from `torch.compile` — reachable without Megatron
+- [ ] §4.6 two jobs on one Lustre dataset — reachable without Megatron
+- [ ] §4.8 `torch_dist` checkpoint hang — needs Megatron
+- [ ] §6 Megatron-Core observations — needs Megatron
+
+**When the ROCm upgrade lands**
+- [ ] Re-run the frozen gates across the ROCm 7.0→7.1+ / torch 2.10→2.11 boundary. This is the
+      largest change the suite will have seen, our whole evidence base is on the old pair, and it
+      should also confirm E5 resolved itself
 
 ---
 
-## File on the container repo — 1 candidate (E1); E3 handled upstream, E5 parked
+## Detail: the container-repo findings
 
 ### E1. `fi_info` / `fi_pingpong` shadowed by Intel MPI shims — highest confidence, low severity
 
@@ -116,14 +160,20 @@ is `pytorch#172144`, fixed in the 2.11 line but not in the shipped 2.10 — see 
 
 ---
 
-## Already filed — comment, do not duplicate
+## Detail: existing issues we checked against
 
-| Our finding | Existing issue | Action |
+Re-checked 2026-08-20. Statuses are in [section 2](#2-comments); this table records why.
+
+| Our finding | Existing issue | Why |
 | --- | --- | --- |
-| `NCCL_NET_GDR_LEVEL=PHB` hangs multi-node collectives | **#30** (open) — "Setting NCCL_NET_GDR_LEVEL may cause jobs to hang" | Already known. Our independent confirmation (job 19624583: indefinite hang → 24 s once removed) could be added as a comment. |
-| Intermittent RCCL hangs, node-correlated | **#20** (open) — "RCCL communications sometimes hang with PyTorch DDP" | Add the `nid007xxx` correlation as a comment. #20 expected a fix in the ROCm 7 / PyTorch 2.10 release, which *is* the image we tested, so evidence that hangs persist there is directly useful. |
-
----
+| `NCCL_NET_GDR_LEVEL=PHB` hangs collectives | **#30** (open, 8 comments) | Last comment already concludes the variable should not be needed. Our confirmation (job 19624583: hang → 24 s once removed) is redundant. Retained as the provenance for our templates defaulting it off. Useful *from* that thread: `FI_MR_CACHE_MONITOR=userfaultfd` reportedly fixed a hang-before-training on some tickets — untested by us |
+| Intermittent RCCL hangs | **#20** (open, 0 comments) | Stale since 2026-03-27 and labelled only for `u24r64`, while it expected a fix in the ROCm 7 / torch 2.10 line we tested. The one comment still worth posting |
+| Multi-node init deadlock | **#28** (open, 7 comments) | Reporter's last comment (2026-04-23) reports 16 nodes stable. Nothing to add |
+| JIT cache variables | **guide #112** (open) | Covers the documentation half of E3 |
+| MIOpen temp dir | **guide #108** (merged 2026-08-17) | Fixed `MIOPEN_USER_DB` → `MIOPEN_USER_DB_PATH` across 18 scripts and added per-node `srun mkdir -p`, before we raised it |
+| VRAM not all usable | **guide #111** (open) | Our measurements posted 2026-08-19 |
+| vLLM/compressed-tensors | **recipes #39** (open) | Shared with the maintainer: the constraint violation is in the shipped images, not only derived ones |
+| Inductor cache temp-file race | **`pytorch#172144`** (merged 2026-01) | Already fixed upstream. Absent from the 2.10 line the images ship → became E5 |
 
 ## Do not file: report §4.1 itself
 
@@ -154,28 +204,3 @@ was attributed to the container is placement.
 | P2 | Per-partition QOS submit / node-minute limits undocumented | LUMI docs | Slurm policy, out of container scope. |
 
 ---
-
-## Suggested order
-
-1. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
-   restores the first tool anyone reaches for when debugging the fabric.
-3. **E5** (torch 2.10.0 predates `pytorch#172144`) — do **not** file upstream, it is already fixed
-   there; the ask is a two-line cherry-pick into the LUMI torch build. Strongest of the container
-   findings: a named upstream commit, a two-line diff, and our 128-rank reproduction as evidence.
-   Note the ask must be a backport, not "move to 2.11" — upstream drops ROCm 7.0 in the 2.11 line
-   (`ROCM_ARCHES` goes `["7.0","7.1"]` → `["7.1","7.2"]`), so 2.11 would need a ROCm bump and a new
-   image tag.
-4. **Guide #112 and #81 comments** — the guide-side half of E3, already tracked upstream. #112 asks
-   for exactly the three JIT variables; the useful addition is that two of them want node-local
-   storage rather than `/scratch`. #81 is closed but its implementation used `MIOPEN_USER_DB`, which
-   MIOpen does not read.
-5. **E2** (ENTRYPOINT under `exec`) — weakest of the three, and optional. Verified against
-   LUMI-AI-Guide `main`: every GPU workload uses `run`, the two opt-in variables appear nowhere, and
-   the guide binds from `LOCAL_RANK` in the application, so guide followers are unaffected. What
-   remains is a dead feature and a documentation gap. Could be a note on the release rather than an
-   issue.
-6. **T1** (add an all-to-all test) — closes the validation gap the report actually identified.
-7. Comments on **#20** and **#30**, and the reframing question on **#28**.
-8. **G2** (guide chapter 5 `exec` snippet) — cosmetic, no functional effect today; file only if a
-   one-word consistency fix is welcome.
-9. Documentation items D1–D4, then P1/P2 to the service desk.

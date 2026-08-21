@@ -57,8 +57,8 @@ Headline results:
 | --- | --- |
 | [`FINDINGS.md`](docs/FINDINGS.md) | **Consolidated response and recommendations** |
 | [`GATES_20260807_RESULTS.md`](docs/GATES_20260807_RESULTS.md) | **Gate suite run against the current release** |
-| [`ESCALATION.md`](docs/ESCALATION.md) | What to file upstream, and what is already reported |
-| [`issues/`](docs/issues/) | Ready-to-paste drafts — new issues plus comments on existing ones (nothing filed) |
+| [`ESCALATION.md`](docs/ESCALATION.md) | **Status index: issues, comments, and open TODOs** |
+| [`issues/`](docs/issues/) | Issue and comment drafts, each carrying its own status |
 | [`VALIDATION.md`](docs/VALIDATION.md) | How to run the gates |
 | [`PHASE0_FINDINGS.md`](docs/PHASE0_FINDINGS.md) | Desk analysis of shipped release artifacts |
 | [`PHASE1_RESULTS.md`](docs/PHASE1_RESULTS.md) | Capability probe, `exec`-vs-`run` binding, allocator |
