@@ -61,10 +61,12 @@ Two implementation notes that cost real debugging time:
 - `dist.new_group()` does not create the RCCL communicator — that happens lazily on first use. A
   test that creates groups without exercising them counts Python objects and consumes no fabric
   resources.
-- Pass `device_id` to `init_process_group`. Without it PyTorch warns `Guessing device ID based on
-  global rank. This can cause a hang if rank to GPU mapping is heterogeneous`, and with one
-  visible GCD per rank that guess is wrong; we measured a hang once a rank held more than one
-  communicator.
+- Bind the device before the first collective — `torch.cuda.set_device(local_rank)`, and optionally
+  `device_id=` on `init_process_group` to make initialisation eager. With one visible GCD per rank
+  every rank sees index 0, so PyTorch's fallback guess of `rank N -> device N` is wrong, and we
+  measured a hang once a rank held more than one communicator. (We added `set_device` and `device_id`
+  in the same change, so which one is load-bearing was not isolated; `set_device` is the more likely
+  candidate.)
 
 A working implementation is at
 [`bench/tests/alltoall.py`](https://github.com/aniskhan25/lumi-apptainer-bench/blob/feature/laif-container-validation/bench/tests/alltoall.py)

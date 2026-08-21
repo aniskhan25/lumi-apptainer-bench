@@ -319,7 +319,7 @@ Note #27 corresponds to the two FAILs in the shipped `*-tests.md`, so LAIF does 
 failing tests — they are filed, just not release-blocking. The release *gate* is what needs
 changing, not the tracking.
 
-### 6. Omitting `device_id` hangs at scale — user-side gotcha
+### 6. No device bound before the first collective hangs at scale — user-side gotcha
 
 `init_process_group()` without `device_id` makes PyTorch warn `Guessing device ID based on
 global rank. This can cause a hang if rank to GPU mapping is heterogeneous.` With
@@ -334,6 +334,17 @@ wrong. At 128 ranks:
 One communicator per rank survives the bad guess, so single-group jobs pass and only
 multi-communicator (Megatron-like) jobs hang. Not a container defect, but a strong candidate
 for user-reported hangs and free to document.
+
+**Correction (2026-08-21).** This was originally reported as "omitting `device_id` hangs". That
+overstates what was measured. The commit that fixed it (`2ecabcb`) added **both**
+`torch.cuda.set_device(index)` and `device_id=` in the same change, and the failing runs had
+*neither*. So the hang is attributable to "no device bound before the first collective", and which
+of the two fixed it was never isolated.
+
+That distinction matters for anyone comparing against their own code: calling
+`torch.cuda.set_device(local_rank)` before the first collective — which the LUMI AI Guide's DDP
+example does — is very likely sufficient on its own. `device_id` additionally makes initialisation
+eager and silences the warning, but it is not a fix for code that already binds the device.
 
 ---
 
@@ -356,7 +367,7 @@ for user-reported hangs and free to document.
    requirement** (finding 2). The binding feature currently activates for no documented workflow.
 7. **Point users at the per-release artifacts** (finding 4) and **file the fabric regression**
    (finding 5).
-8. **Document `device_id`** in the reference launch recipe (finding 6).
+8. **Document that the device must be bound before the first collective** (finding 6) — `torch.cuda.set_device(local_rank)` is the load-bearing call; `device_id=` additionally makes init eager.
 8. **Extend the known-bad node list** and record node lists with all timing data (4.5).
 
 ## Ask of the reporter

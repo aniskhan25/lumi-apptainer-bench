@@ -47,11 +47,17 @@ Reporting it would have handed the maintainers a false lead.
 > passed — which argues against a rank-count or configuration cause, but we tested and rejected node
 > placement as an explanation, so we are not proposing one. Node lists are available if useful.
 >
-> Separately, and possibly relevant to the straggler-rank theory: omitting `device_id` from
-> `init_process_group` reliably hung us at 128 ranks once a rank held more than one communicator
-> (first communicator 13.9 s vs 1.14 s with `device_id`, second one never returning vs 0.29 s). A
-> single communicator per rank survives the wrong guess, so the symptom only appears in
-> multi-communicator jobs — which may be why this reproduces for some users and not others.
+> Separately, and possibly relevant to the straggler-rank theory: we hung reproducibly at 128 ranks
+> when **no device was bound before the first collective** — neither `torch.cuda.set_device()` nor
+> `device_id=` on `init_process_group`. The first communicator took 13.9 s and the second never
+> returned; with both set, 1.14 s and 0.29 s. A single communicator per rank survives it, so the
+> symptom only appears once a rank holds more than one — which may be why this reproduces for some
+> users and not others.
+>
+> To be precise about what we measured: the two were added in the same change, so we cannot say which
+> one mattered. Code that already calls `torch.cuda.set_device(local_rank)` before its first
+> collective is probably unaffected. Worth checking whether the failing jobs in this issue bind the
+> device at all.
 
 ---
 

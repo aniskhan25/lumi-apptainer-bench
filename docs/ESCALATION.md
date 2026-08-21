@@ -18,8 +18,8 @@ itself rather than quietly edited away.
 | **E3** | [JIT cache defaults](issues/E3-jit-cache-defaults.md) | — | **Handled** via guide #112. Measurement record retained |
 | **E5** | [torch 2.10.0 predates `pytorch#172144`](issues/E5-torch-predates-inductor-cache-fix.md) | `laifs-container-recipes` | **Parked.** Fix is in the 2.11 line, which needs ROCm ≥7.1; arrives free with the coming ROCm upgrade |
 | **G2** | [Guide ch.5 uses `exec` in one snippet](issues/G2-guide-ch5-exec-snippet.md) | `LUMI-AI-Guide` | **Not filed — cosmetic.** No functional effect today |
-| **G3** | [Guide ch.5 omits `device_id` on `init_process_group`](issues/G3-guide-device-id.md) | `LUMI-AI-Guide` | **Not filed — candidate.** Concrete, one-line fix, and the guide's example teaches the pattern that deadlocks when extended |
 | **T1** | [Add a multi-node all-to-all test](issues/T1-add-alltoall-test.md) | `laifs-container-tests` | **Not filed — unexamined.** Never re-checked against that repo's current state |
+| ~~G3~~ | Guide ch.5 `device_id` | — | **Withdrawn.** The guide binds the device before its first collective, which is what matters; our measurement never isolated `device_id` from `set_device` |
 | ~~E4~~ | mpi4py on Intel MPI | — | **Withdrawn.** Benign in the realistic import order; folded into E1 as a note |
 | ~~G1~~ | `MIOPEN_USER_DB` typo | — | **Withdrawn.** Fixed upstream in guide #108 before we raised it |
 | ~~U1~~ | Inductor cache reader | — | **Withdrawn.** Already fixed upstream; became E5 |
@@ -42,8 +42,6 @@ itself rather than quietly edited away.
 - [ ] Post the **#20** comment — the only remaining one worth sending. Keeps both halves together:
       #20 is about hangs, so the uncaused 2-of-5 observation and the `device_id` mechanism both
       belong there rather than being split off
-- [ ] File **G3** (guide `device_id`) — the same finding aimed at users rather than maintainers,
-      where it is actionable rather than a data point
 - [ ] Decide on **E1** (cheap, low severity) and **E2**/**G2** (optional)
 - [ ] Re-check **T1** against `laifs-container-tests` before filing, given that five of nine drafts
       collapsed on contact with their target repos
