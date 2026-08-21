@@ -26,7 +26,14 @@ USE_ROCR_VISIBLE_DEVICES="${USE_ROCR_VISIBLE_DEVICES:-1}"
 # Off by default -- see the note in multi_ng_8rpn.sh. Set to 1 only for the deliberate
 # fabric-tuning sweep in Phase 3.
 ENABLE_LUMI_HSN="${ENABLE_LUMI_HSN:-0}"
-ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-1}"
+# Off by default, matching every other template in the validation path. The LUMI NUMA
+# masks assume an exclusive full node (7 cores per GPU group, 0xfe); a shared or partial
+# allocation gives 4 per group (0x1E) and srun aborts the step with "CPU binding outside
+# of job step allocation". With this defaulted to 1, scripts/run_validation.sh could not
+# get past phase 2 (observed on job 21428142). The recorded EP=8/16/32 baselines were all
+# measured with --cpu-bind=cores, so 0 is also what the gate thresholds were calibrated
+# against. Set to 1 only under an sbatch allocation holding whole nodes.
+ENABLE_LUMI_CPU_MASKS="${ENABLE_LUMI_CPU_MASKS:-0}"
 
 GROUP_SIZE="${GROUP_SIZE:-8}"
 
