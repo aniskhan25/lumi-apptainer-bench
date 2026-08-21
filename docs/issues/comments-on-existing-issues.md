@@ -18,84 +18,78 @@ candidate if we see startup hangs again.
 
 ## Comment on #20 — "RCCL communications sometimes hang with PyTorch DDP" — POSTABLE
 
-The only one of the three worth adding to: 0 comments, untouched since 2026-03-27, and labelled
-only for the `u24r64f21m43t29` generation. This issue expected a fix in the ROCm 7 / PyTorch 2.10
-release, so evidence from that line is new information.
+Reproduced on the current release, 2026-08-21. Localised to `init_process_group`, not to
+communicator count.
 
-**Reproduction attempt, 2026-08-21 — did not reproduce.** A standalone minimal script (no harness
-involved): bind the device, `init_process_group` with `device_id`, then create 8 world-spanning
-groups and force each communicator into existence with an `all_reduce`. 4 nodes / 32 ranks on
-`20260807_115122`, three consecutive attempts in one allocation, each capped at 5 minutes.
-
-| Attempt | Result | Elapsed |
-| --- | --- | --- |
-| 1 | pass | **3 m 38 s** |
-| 2 | pass | 24 s |
-| 3 | pass | 24 s |
-
-Job 21432542, nodes `nid[007006-007009]` — inside the `nid007xxx` range where both original hangs
-landed, which is further evidence against the placement theory that was already rejected.
-
-Three passes do not refute a ~40% failure rate (≈22% likely by chance), so the 2-of-5 record stands
-as the stronger evidence and this changes nothing about it. Two things worth noting anyway:
-
-- **Cold start is large.** The first attempt took 3 m 38 s and the next two 24 s each, on the same
-  nodes. So "hang" and "slow first collective" are separated by minutes, not seconds, and a timeout
-  set too tight would misclassify one as the other. The original failures ran 10 and 25 minutes
-  before being killed, so they are well clear of this — but it is the reason to state elapsed times
-  rather than just pass/fail.
-- **The minimal script may not be the trigger.** The original runs used our `comm_count` test, which
-  also does communicator churn and memory sampling per step. A simpler script exercising only
-  creation may miss whatever the trigger is.
-
-**Honest weight of this comment.** Half of it is an uncaused observation and half is a question. The
-2-of-5 hangs have no established cause: the node-placement hypothesis was tested and rejected, and
-the device-binding fix predates both hangs (committed 02:53, hangs began 04:26 and 10:21 the same
-day) so it does not explain them either. The original run logs are also no longer on scratch, so if
-the maintainers ask for output we can supply only the job IDs and node lists recorded in
-[`PHASE5_COMM_COUNT_RESULTS.md`](../PHASE5_COMM_COUNT_RESULTS.md). Post it as a data point that the
-r70 line still hangs, or not at all — it will not help anyone debug.
-
-**Deliberately excludes the node-placement theory.** An earlier version of this draft argued that
-both our hangs landing on `nid007xxx` pointed at node state. A larger sample did not support it —
-across nine runs the run with the *highest* `nid007xxx` fraction passed and the one with the *lowest*
-failed, and no node was common to all failures. So the correlation was five data points and noise.
-Reporting it would have handed the maintainers a false lead.
-
-> A data point on whether this persists in the ROCm 7 / PyTorch 2.10 release you expected the fix
-> in. This issue is labelled for the `u24r64f21m43t29` builds; we see intermittent hangs on
-> `full-u24r70f21m50t210-20260513_121430` (PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`) too.
+> Reproduced on `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`
+> (digest `d70ec87f…`), `standard-g`, 4 nodes / 32 ranks, 8 ranks per node.
 >
-> Across a 5-run communicator-creation sweep (2/4/8/16 nodes, 8 ranks/node, up to 8 concurrent
-> world-spanning communicators per rank), two runs hung and three passed:
+> **`init_process_group` intermittently never returns.** Same script, same allocation shape, back to
+> back: one run hung until we killed it at 12 minutes, the next completed normally.
 >
-> | Job | Nodes | Result |
+> | Run | Result | Nodes |
 > | --- | --- | --- |
-> | 20724372 | 4 | hang (killed at 10 min) |
-> | 20711452 | 16 | hang (killed at 25 min) |
-> | 20724354 | 2 | pass, 37 s |
-> | 20724753 | 8 | pass, 45 s |
-> | 20724970 | 16 | pass, 47 s |
+> | job 21433843 | **hung** — killed at 12:04 | `nid[007223-007226]` |
+> | next attempt | passed, all 32 ranks fine | `nid[005908,007224,007840-007841]` |
 >
-> We could not establish a cause. The result is non-monotonic in scale — 4 nodes hung while 8 and 16
-> passed — which argues against a rank-count or configuration cause, but we tested and rejected node
-> placement as an explanation, so we are not proposing one. Node lists are available if useful.
+> **It is not communicator count.** Our test creates 8 world-spanning groups per rank and writes a
+> per-rank progress record after every step, plus one *before* the loop starts. On the hung run
+> **zero** records were written — so it never reached the first group. On the passing run every one
+> of the 32 ranks reached 8/8. So the behaviour is binary: initialisation either completes and all
+> eight communicators work, or it never completes at all.
 >
-> Separately, and possibly relevant to the straggler-rank theory: we hung reproducibly at 128 ranks
-> when **no device was bound before the first collective** — neither `torch.cuda.set_device()` nor
-> `device_id=` on `init_process_group`. The first communicator took 13.9 s and the second never
-> returned; with both set, 1.14 s and 0.29 s. A single communicator per rank survives it, so the
-> symptom only appears once a rank holds more than one — which may be why this reproduces for some
-> users and not others.
+> Since `device_id` is passed, `init_process_group` initialises eagerly, so the default group's RCCL
+> communicator is built inside that call. The stall is therefore at or before the *first*
+> communicator's bootstrap.
 >
-> To be precise about what we measured: the two were added in the same change, so we cannot say which
-> one mattered. Code that already calls `torch.cuda.set_device(local_rank)` before its first
-> collective is probably unaffected. Worth checking whether the failing jobs in this issue bind the
-> device at all.
+> **Reproducer.** Instrumented so a hung run shows where it stopped. It is intermittent — we saw
+> roughly one hang in two attempts — so run it several times.
 >
-> Note these are **two separate observations, not one explanation**. The device fix landed before both
-> of the hangs above ran (fix committed 02:53, hangs started 04:26 and 10:21 the same day), so the
-> 2-of-5 hangs are not accounted for by it. We have no cause for those.
+> ```python
+> # comms.py
+> import os, time, torch, torch.distributed as dist
+> T0 = time.time()
+> R = int(os.environ["SLURM_PROCID"]); N = int(os.environ["SLURM_NPROCS"])
+> def log(m): print(f"[{time.time()-T0:6.1f}s r{R}] {m}", flush=True)
+>
+> log("torch imported")
+> torch.cuda.set_device(0)                                  # one visible GCD per rank
+> log("device set")
+> dist.init_process_group("nccl", rank=R, world_size=N,
+>                         device_id=torch.device("cuda", 0))
+> log("init_process_group returned")        # <-- never printed on a hung run
+>
+> for i in range(8):
+>     g = dist.new_group()                                  # world-spanning
+>     t = torch.ones(1 << 18, device="cuda")
+>     dist.all_reduce(t, group=g)                           # forces the communicator to exist
+>     torch.cuda.synchronize()
+>     log(f"communicator {i+1}/8 live")
+> dist.barrier(); log("done")
+> ```
+>
+> ```bash
+> #SBATCH --nodes=4 --ntasks-per-node=8 --gpus-per-node=8 --time=00:20:00
+> export MASTER_ADDR=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -1)
+> export MASTER_PORT=$((20000 + SLURM_JOB_ID % 20000))     # not a fixed port; see note below
+> for i in 1 2 3 4 5; do
+>   timeout 300 srun --unbuffered singularity exec "$SIF" bash -c \
+>     'export ROCR_VISIBLE_DEVICES=$SLURM_LOCALID; python3 -u comms.py'
+>   echo "attempt $i -> exit $? (124 = hung)"
+> done
+> ```
+>
+> Two notes that cost us time and may be worth checking against your own failures:
+>
+> - **Use a per-job rendezvous port.** With a fixed `MASTER_PORT=29500` we got a different failure —
+>   every rank on the second node timing out against the store — which looks like this one but is
+>   not. Deriving the port from `SLURM_JOB_ID` removed it.
+> - **Bind the device before the first collective.** With neither `torch.cuda.set_device()` nor
+>   `device_id` set, we hung reproducibly at 128 ranks once a rank held more than one communicator.
+>   That is a third, separate failure; the reproducer above sets both so it cannot interfere.
+>
+> We have not isolated which call inside `init_process_group` stalls, and cannot say whether it would
+> eventually return — 12 minutes was our own cap, not a proof of permanence.
 
 ---
 
