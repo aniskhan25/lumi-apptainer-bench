@@ -59,6 +59,21 @@ the first command anyone runs when investigating the fabric — the same subject
 #28 and #30. A user hitting it reasonably concludes the libfabric tools were not shipped, and then
 has no way to enumerate providers from inside the container.
 
+## It also disables automated fabric checks
+
+Not just a human inconvenience. Running our validation gates against
+`20260807_115122` produced one failure and one silent gap:
+
+```
+FAIL     fi_info_runs           expected True, got False
+skipped  cxi_provider_visible   None
+```
+
+The provider-enumeration check gets its data from `fi_info -p cxi`, so when the shim shadows the
+working binary that gate cannot run at all. A suite in this state reports one failure and quietly
+loses fabric coverage. Any release test that enumerates providers this way has the same blind spot
+on `full` and `plus`.
+
 ## Fix
 
 `rm -f /opt/venv/bin/fi_info /opt/venv/bin/fi_pingpong` at build time, or drop `oneccl` if it is

@@ -56,6 +56,7 @@ Headline results:
 | Document | Contents |
 | --- | --- |
 | [`FINDINGS.md`](docs/FINDINGS.md) | **Consolidated response and recommendations** |
+| [`GATES_20260807_RESULTS.md`](docs/GATES_20260807_RESULTS.md) | **Gate suite run against the current release** |
 | [`ESCALATION.md`](docs/ESCALATION.md) | What to file upstream, and what is already reported |
 | [`issues/`](docs/issues/) | Ready-to-paste drafts — new issues plus comments on existing ones (nothing filed) |
 | [`VALIDATION.md`](docs/VALIDATION.md) | How to run the gates |
