@@ -16,15 +16,15 @@ which was posted 2026-08-19 — see the status note in
 | --- | --- |
 | [`E1-fi_info-broken.md`](issues/E1-fi_info-broken.md) | `laifs-container-recipes` |
 | [`E2-entrypoint-not-run-under-exec.md`](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` |
-| [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | `laifs-container-recipes` |
-| [`E5-torch-predates-inductor-cache-fix.md`](issues/E5-torch-predates-inductor-cache-fix.md) | `laifs-container-recipes` |
+| [`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) | *handled via guide #112 — not filed* |
+| [`E5-torch-predates-inductor-cache-fix.md`](issues/E5-torch-predates-inductor-cache-fix.md) | *parked pending the ROCm upgrade* |
 | [`T1-add-alltoall-test.md`](issues/T1-add-alltoall-test.md) | `laifs-container-tests` |
 | [`G2-guide-ch5-exec-snippet.md`](issues/G2-guide-ch5-exec-snippet.md) | `Lumi-supercomputer/LUMI-AI-Guide` |
 | [`comments-on-existing-issues.md`](issues/comments-on-existing-issues.md) | comments on recipes #20, #28, #30, #39 and guide #81, #112 |
 
 ---
 
-## File on the container repo — 3 new issues
+## File on the container repo — 1 candidate (E1); E3 handled upstream, E5 parked
 
 ### E1. `fi_info` / `fi_pingpong` shadowed by Intel MPI shims — highest confidence, low severity
 
@@ -90,38 +90,29 @@ variables. Ask is now primarily documentation: state that `run` is required, doc
 variables, and consider `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` as an `ENV` default since `ENV`
 applies under both verbs.
 
-### E3. Set safe JIT cache defaults in the image — hardening, with a reproduction
+### E3. JIT cache defaults — HANDLED UPSTREAM, not filed
 
-No existing issue. The image sets none of `TRITON_CACHE_DIR`, `TORCHINDUCTOR_CACHE_DIR`,
-`TORCH_EXTENSIONS_DIR`, `MIOPEN_USER_DB_PATH`, so each falls back to its framework default.
+Treated as handled via `Lumi-supercomputer/LUMI-AI-Guide#112` (2026-08-21). Public state at that
+date: #112 open, 0 comments, last updated 2026-08-06, and the three variables still absent from guide
+`main`, whose cache block covers only `MIOPEN_*` and `TORCH_HOME`. So it is tracked upstream rather
+than implemented.
 
-**Correction to an earlier version of this section.** It said the defaults are "typically
-`$HOME`". Measured inside the image, three of four are (`TRITON_CACHE_DIR` →
-`/users/$USER/.triton/cache`, `TORCH_EXTENSIONS_DIR` → `/users/$USER/.cache/torch_extensions/…`,
-`MIOPEN_USER_DB_PATH` → `~/.config/miopen/`) but **`TORCHINDUCTOR_CACHE_DIR` defaults to
-`/tmp/torchinductor_$USER`, which is node-local**. Our failing arm set that variable explicitly, so
-a user who changes nothing does not hit it.
+Residual difference, noted and not pursued: #112 is guide-side documentation and reaches users who
+follow the guide's scripts; our ask was an image-side `ENV` default, which would also reach derived
+images and users who never read the guide. Modest, declinable, dropped.
 
-They are steered into it instead. The LUMI-AI-Guide sets a cache block in 17 job scripts whose
-stated purpose is "to avoid saving to home directory", redirecting MIOpen's kernel cache to a
-node-local temp dir and `TORCH_HOME` to `/scratch` — while covering none of the three torch/Triton
-JIT variables. Completing that pattern by pointing the missing three at `/scratch`, as the block
-models for `TORCH_HOME`, builds exactly the failing configuration. The two the guide leaves alone
-default to `$HOME`, shared across the job's nodes and under a 20 GB quota. Both outcomes are bad
-and the documentation gives no basis for choosing.
-
-Reproduced on `20260513_121430`, 128 ranks / 16 nodes, 24 forced compilations per rank,
-identical except cache location:
+The measurement record is worth keeping regardless, and lives in
+[`E3-jit-cache-defaults.md`](issues/E3-jit-cache-defaults.md) and
+[`PHASE4_RESULTS.md`](PHASE4_RESULTS.md):
 
 | Cache | Failed ranks | Compile time | Result |
 | --- | --- | --- | --- |
-| Lustre | **1 of 128** + 80 recovered warnings across 9 ranks | 42–43 s | fail |
+| shared, on Lustre | **1 of 128** + 80 recovered warnings across 9 ranks | 42–43 s | fail |
 | per-node `/tmp` | none | 28.3–28.5 s | pass |
 
-Lustre is also ~1.5× slower to compile even when nothing fails. Setting per-node defaults keyed
-by container ID would remove the failure class for every user. The root cause is upstream — the
-Inductor cache reader opens other processes' in-flight `.tmp` files (see U1) — but the container
-is where the mitigation belongs, since it controls the defaults.
+Plus the observed default: `~/.triton` accumulating 386 real `.hsaco`/`.llir` files over 2026-04 to
+2026-07 with `TRITON_CACHE_DIR` unset, on a `$HOME` that is Lustre at 18G of 20G. The underlying race
+is `pytorch#172144`, fixed in the 2.11 line but not in the shipped 2.10 — see E5.
 
 ---
 
@@ -166,8 +157,7 @@ was attributed to the container is placement.
 
 ## Suggested order
 
-1. **E3** (cache defaults) — largest user impact; carries its own reproduction.
-2. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
+1. **E1** (`fi_info`) — lowest severity of the three, but a one-line fix and zero risk, and it
    restores the first tool anyone reaches for when debugging the fabric.
 3. **E5** (torch 2.10.0 predates `pytorch#172144`) — do **not** file upstream, it is already fixed
    there; the ask is a two-line cherry-pick into the LUMI torch build. Strongest of the container

@@ -1,6 +1,19 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
 **Title:** Set node-local JIT cache defaults in the image — Triton and C++ extension caches land on `$HOME`
 
+**STATUS: NOT FILED — treated as handled via `Lumi-supercomputer/LUMI-AI-Guide#112` (2026-08-21).**
+
+For the record, the state of the public tracking as of 2026-08-21: #112 is open with 0 comments,
+last updated 2026-08-06, and the three variables do not yet appear in guide `main` — the cache block
+there still covers only `MIOPEN_*` and `TORCH_HOME`. So "handled" means tracked upstream, not yet
+implemented.
+
+One residual difference, noted and not pursued: #112 is guide-side documentation, which reaches users
+who follow the guide's scripts. The ask below was an image-side `ENV` default, which additionally
+reaches derived images and users who never read the guide. That difference is real but modest, and a
+maintainer could reasonably decline it, so it is dropped rather than argued. Retained below as the
+measurement record — the observed `$HOME` cache evidence is the part worth keeping.
+
 ---
 
 ## Summary

@@ -339,8 +339,9 @@ for user-reported hangs and free to document.
 
 ## Recommendations, in order of expected benefit
 
-1. **Set per-node JIT cache defaults in the image** (finding 3 + 4.7). Removes a whole failure
-   class that is invisible below ~64 ranks.
+1. **Point the JIT caches at node-local storage** (finding 3 + 4.7). Removes a whole failure class
+   that is invisible below ~64 ranks. Tracked upstream as `LUMI-AI-Guide#112` for the guide-side
+   documentation; the image-default variant was dropped as a modest, declinable extra.
 2. **Fix `fi_info`** (finding 1). One packaging fix; restores the primary fabric diagnostic.
 3. **Publish a practical per-GCD memory ceiling** and the ~0.65 GiB-per-communicator overhead
    (4.2). Prevents a recurring class of confusing OOMs.
