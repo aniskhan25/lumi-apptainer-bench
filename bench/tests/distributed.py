@@ -4,6 +4,26 @@ import subprocess
 
 
 DEFAULT_MASTER_PORT = "29500"
+
+
+def master_port_from_slurm() -> str:
+    """Derive the rendezvous port from the job ID so concurrent jobs cannot collide.
+
+    A fixed port is unsafe here. The validation suite runs several jobs back to back, and
+    two of them landing on the same node -- or one starting while a previous socket is
+    still in TIME_WAIT -- leaves the non-root ranks unable to reach the TCPStore. Observed
+    on job 21428186: every rank on the second node failed with "The client socket has timed
+    out after 600000ms while trying to connect to (nid005216, 29500)", so the run consumed
+    a 2-node allocation for 10 minutes and produced nothing.
+
+    Same scheme as the LUMI AI Guide, which sets MASTER_PORT from SLURM_JOB_ID for exactly
+    this reason. Falls back to the fixed port when not under Slurm.
+    """
+    job_id = os.environ.get("SLURM_JOB_ID", "")
+    digits = "".join(c for c in job_id if c.isdigit())
+    if len(digits) >= 4:
+        return str(20000 + int(digits[-4:]) % 20000)
+    return DEFAULT_MASTER_PORT
 DEFAULT_BACKEND = "nccl"
 
 
@@ -64,7 +84,7 @@ def init_process_group(torch_mod):
             return False, "missing MASTER_ADDR"
         os.environ["MASTER_ADDR"] = master_addr
     if not os.environ.get("MASTER_PORT"):
-        os.environ["MASTER_PORT"] = DEFAULT_MASTER_PORT
+        os.environ["MASTER_PORT"] = master_port_from_slurm()
 
     # Bind the device and tell the process group about it before initialising. Without
     # device_id, ProcessGroupNCCL warns "Guessing device ID based on global rank. This can
