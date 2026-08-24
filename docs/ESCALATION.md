@@ -13,6 +13,7 @@ itself rather than quietly edited away.
 
 | # | What | Target | Status |
 | --- | --- | --- | --- |
+| **E6** | [First collective on a new process group hangs, silently](issues/E6-newgroup-first-collective-hang.md) | `laifs-container-recipes` | **Not filed — strongest candidate.** Reproduced 10/13 across 3 allocations under Chapter 5's own launch recipe; localised to lazy RCCL communicator init; no watchdog, no dump, no error |
 | **E1** | [`fi_info`/`fi_pingpong` shadowed by Intel MPI shims](issues/E1-fi_info-broken.md) | `laifs-container-recipes` | **Not filed — candidate.** Low severity, one-line fix. Strengthened 2026-08-21: it also *skips* our `cxi_provider_visible` gate, so it blinds automated fabric checks |
 | **E2** | [#6/#13 GPU-binding fix is doubly opt-in](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` | **Not filed — optional.** Verified against guide `main`: no documented workflow is affected. Dead feature + docs gap |
 | **E3** | [JIT cache defaults](issues/E3-jit-cache-defaults.md) | — | **Handled** via guide #112. Measurement record retained |
@@ -39,6 +40,8 @@ itself rather than quietly edited away.
 ## 3. TODO
 
 **Escalation**
+- [ ] File **E6** — the one finding that got stronger under scrutiny, and the only one with a
+      reproducer a maintainer can run unmodified
 - [ ] Post the **#20** comment — the only remaining one worth sending. Keeps both halves together:
       #20 is about hangs, so the uncaused 2-of-5 observation and the `device_id` mechanism both
       belong there rather than being split off
