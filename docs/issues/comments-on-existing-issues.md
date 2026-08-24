@@ -18,95 +18,76 @@ candidate if we see startup hangs again.
 
 ## Comment on #20 — "RCCL communications sometimes hang with PyTorch DDP" — POSTABLE
 
-Reproduced 2026-08-21 on the current release, **under the LUMI AI Guide's own documented launch
-configuration**, 5/5 attempts. Creating world-spanning RCCL communicators intermittently never
-returns.
+Reproduced and localised on the current release, under Chapter 5's documented launch configuration.
+**The first collective on a newly created process group intermittently never returns**, and PyTorch's
+watchdog cannot see it.
 
-> Reproduced on `lumi-multitorch-full-u24r70f21m50t210-20260807_115122` (digest `d70ec87f…`),
-> `standard-g`, 4 nodes / 32 ranks.
+> `lumi-multitorch-full-u24r70f21m50t210-20260807_115122` (digest `d70ec87f…`), `standard-g`,
+> 4 nodes / 32 ranks. Launch configuration is Chapter 5's srun recipe unmodified — `singularity run`,
+> `--ntasks-per-node=8 --gpus-per-node=8 --cpus-per-task=7 --mem-per-gpu=60G`, the guide's
+> `CPU_BIND_MASKS`, `MASTER_PORT="1${SLURM_JOB_ID:0-4}"`, `WORLD_SIZE=$SLURM_NPROCS`,
+> `RANK`/`LOCAL_RANK` exported inside the container, no `ROCR_VISIBLE_DEVICES`, and no `device_id`.
 >
-> **Launch configuration is Chapter 5's, unmodified:** `singularity run`, `--ntasks-per-node=8
-> --gpus-per-node=8 --cpus-per-task=7 --mem-per-gpu=60G`, the guide's `CPU_BIND_MASKS`,
-> `MASTER_PORT="1${SLURM_JOB_ID:0-4}"`, `WORLD_SIZE=$SLURM_NPROCS`, `RANK`/`LOCAL_RANK` exported
-> inside the container, no `ROCR_VISIBLE_DEVICES` (all 8 GCDs visible), and
-> `init_process_group(backend="nccl")` with no `device_id`. The workload — several world-spanning
-> groups — is the Megatron-like part and is what the guide does not cover.
->
-> **Result: 5 of 5 attempts hung.** Each ran fine up to a point and then stopped, at a *different*
-> communicator each time:
->
-> | Attempt | Last line printed | Hung while creating |
-> | --- | --- | --- |
-> | 1 | `first collective on default PG done` (14.1 s) | communicator 1 |
-> | 2 | `communicator 2/8 live` (13.7 s) | communicator 3 |
-> | 3 | `communicator 3/8 live` (15.2 s) | communicator 4 |
-> | 4 | `communicator 4/8 live` (16.7 s) | communicator 5 |
-> | 5 | `communicator 2/8 live` (13.6 s) | communicator 3 |
->
-> So it is not a fixed ceiling and not a resource limit at a particular count — each communicator
-> before the stall is created in ~1.5 s, then one simply never completes. `init_process_group` itself
-> returned in under 1.2 s every time; the stall is always in a later `new_group` + first collective.
->
-> **Reproducer** (job 21436817, nodes `nid[007434,007455,007457,007461]`):
+> **Where it stops.** Instrumenting each step and logging from *every* rank:
 >
 > ```python
-> # comms_guide.py
-> import os, time, torch, torch.distributed as dist
-> T0 = time.time()
-> LR = int(os.environ["LOCAL_RANK"]); R = int(os.environ["RANK"])
-> def log(m):
->     if R == 0: print(f"[{time.time()-T0:6.1f}s] {m}", flush=True)
->
-> log(f"visible GCDs={torch.cuda.device_count()} | LOCAL_RANK={LR}")
-> torch.cuda.set_device(LR)
-> dist.init_process_group(backend="nccl")
-> log(f"init returned | world={dist.get_world_size()}")
-> t = torch.ones(1 << 18, device=f"cuda:{LR}")
-> dist.all_reduce(t); torch.cuda.synchronize()
-> log("first collective on default PG done")
-> for i in range(8):
->     g = dist.new_group()                                  # world-spanning
+> for i in range(1, 9):
+>     log(f"A calling new_group {i}")
+>     g = dist.new_group()
+>     log(f"B group {i} object created")
 >     x = torch.ones(1 << 18, device=f"cuda:{LR}")
->     dist.all_reduce(x, group=g); torch.cuda.synchronize()  # forces the communicator to exist
->     log(f"communicator {i+1}/8 live")
-> dist.barrier(); log("ALL DONE")
+>     dist.all_reduce(x, group=g)
+>     log(f"C allreduce {i} enqueued")
+>     torch.cuda.synchronize()
+>     log(f"D communicator {i}/8 live")
 > ```
 >
-> ```bash
-> #SBATCH --nodes=4 --gpus-per-node=8 --ntasks-per-node=8 --cpus-per-task=7 --mem-per-gpu=60G
-> export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-> export MASTER_PORT="1${SLURM_JOB_ID:0-4}"
-> export WORLD_SIZE=$SLURM_NPROCS
-> CPU_BIND_MASKS="0x00fe000000000000,0xfe00000000000000,0x0000000000fe0000,0x00000000fe000000,0x00000000000000fe,0x000000000000fe00,0x000000fe00000000,0x0000fe0000000000"
-> for i in 1 2 3 4 5; do
->   timeout 300 srun --cpu-bind=v,mask_cpu=$CPU_BIND_MASKS singularity run $SIF bash -c \
->     "export RANK=\$SLURM_PROCID && export LOCAL_RANK=\$SLURM_LOCALID && python3 -u comms_guide.py"
->   echo "attempt $i -> exit $? (124 = hung)"
-> done
-> ```
+> In every hung run, **all 32 ranks print B and none print C**:
 >
-> **Corroborating runs**, separate allocations, our own harness (which additionally restricts
-> visibility with `ROCR_VISIBLE_DEVICES=$SLURM_LOCALID` and passes `device_id`):
->
-> | Scale | Allocations | Hung | Passed |
+> | Attempt | Stalls on group | Ranks reaching B | Ranks reaching C |
 > | --- | --- | --- | --- |
-> | 4 nodes | 5 | 2 | 2 (+1 unrelated error) |
-> | 16 nodes | 3 | **3** | 0 |
+> | 1 | 5 | 32 | **0** |
+> | 2 | 4 | 32 | **0** |
+> | 3 | 2 | 32 | **0** |
+> | 4 | 8 | 32 | **0** |
 >
-> So it occurs with and without restricted device visibility, and with both eager and lazy
-> initialisation. Under eager init (`device_id` passed) the stall moves *into*
-> `init_process_group`, since that is where the first communicator is then built.
+> So `new_group()` returns fine — it is only bookkeeping — and the block is inside the **first
+> `all_reduce` on that group**, which is where RCCL lazily initialises the communicator. The group
+> index varies (5, 4, 2, 8), so it is not a ceiling or a count-dependent limit. Each preceding
+> communicator comes up in ~1.5 s.
 >
-> **Limitations, stated plainly:**
+> **There is no straggler rank.** All 32 ranks block at the same call. This is not one slow
+> participant; the whole world stops together.
 >
-> - The 5/5 attempts shared **one allocation** on one set of four nodes, so that is one independent
->   sample, not five. It establishes that the documented configuration hangs; it does not establish a
->   rate. The per-allocation numbers in the table above are the better rate estimate.
-> - `exit 124` is our own 300 s cap. We know these did not finish in 300 s; we did not test whether
->   they would ever finish.
-> - We have not captured which rank is the straggler. `TORCH_NCCL_TRACE_BUFFER_SIZE` plus
->   `TORCH_NCCL_DUMP_ON_TIMEOUT` on this reproducer would give that, and is the obvious next step if
->   useful to you.
+> **PyTorch's timeout machinery does not catch it.** With `timeout=timedelta(seconds=90)` on the
+> process group and a 240 s wall cap, across four hangs: **zero** `Watchdog caught` messages, zero
+> `DistBackendError`, and **zero** flight-recorder dumps despite `TORCH_FR_BUFFER_SIZE=2000` and
+> `TORCH_NCCL_DUMP_ON_TIMEOUT=1`. That is consistent with the block occurring *before* a `WorkNCCL`
+> is enqueued: there is no work item to time out and nothing for the recorder to record. The
+> practical consequence is that the job hangs indefinitely producing no error and no diagnostics —
+> which matches this issue's title.
+>
+> **Rates and node lists** (each row a separate allocation):
+>
+> | Job | Nodes | Attempts | Hung |
+> | --- | --- | --- | --- |
+> | 21436817 | `nid[007434,007455,007457,007461]` | 5 | **5** |
+> | 21499264 | `nid[007745-007748]` | 5 | **4** |
+> | 21492040 | `nid[006972-006975]` | 3 | 1 |
+>
+> Also seen with our own harness (restricted visibility via `ROCR_VISIBLE_DEVICES` plus `device_id`,
+> so eager init): 2 of 5 allocations at 4 nodes, and **3 of 3 at 16 nodes**. Under eager init the
+> stall moves into `init_process_group`, because that is where the first communicator is then built —
+> same failure, different call site.
+>
+> The `nid007xxx` allocations fared much worse than the `nid006xxx` one (9/10 vs 1/3). We previously
+> tested and rejected a node-placement hypothesis on a different dataset, so we are not asserting one
+> — but the node lists are here in case they line up with your failures.
+>
+> **Limitations.** `exit 124` is our own wall cap; we did not test whether these would eventually
+> return. Repeated attempts within one allocation are not independent samples. We have not captured
+> RCCL-internal state during the stall — `NCCL_DEBUG=INFO` with `NCCL_DEBUG_SUBSYS=INIT,NET` on this
+> reproducer would be the next step, and we are happy to run it.
 
 ---
 
