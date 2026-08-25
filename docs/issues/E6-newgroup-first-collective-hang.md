@@ -54,10 +54,25 @@ which it stalls varies (we saw 2, 4, 5 and 8), and each earlier communicator com
 So it is not a ceiling or a limit at a particular count. All 32 ranks block at the same call, so
 there is no straggler.
 
-With `timeout=timedelta(seconds=90)` on the process group and a 240 s wall cap, four hangs produced
-zero `Watchdog caught` messages, zero `DistBackendError`, and zero dumps under
-`TORCH_FR_BUFFER_SIZE=2000` + `TORCH_NCCL_DUMP_ON_TIMEOUT=1`. Consistent with the block landing
-before a `WorkNCCL` is enqueued: nothing to time out, nothing to record.
+**Nothing ever ends it.** Job 21518451 ran the same reproducer with no wall cap and the **default**
+600 s process-group timeout. All 32 ranks reached `group 1 created` and stopped. A heartbeat thread
+kept printing for **59 minutes**, so the processes stayed alive and were scheduling normally, and the
+run ended only when Slurm hit its time limit:
+
+```
+[   60.0s r000 nid007513] HEARTBEAT: process alive, still inside the blocked call
+...
+[ 3540.0s r000 nid007513] HEARTBEAT: process alive, still inside the blocked call
+slurmstepd: error: *** STEP 21518451.0 CANCELLED AT 2026-08-25T13:15:44 DUE TO TIME LIMIT ***
+```
+
+Across that hour: zero `Watchdog caught`, zero `DistBackendError`, zero `checkTimeout`, and zero
+flight-recorder dumps under `TORCH_FR_BUFFER_SIZE=2000` + `TORCH_NCCL_DUMP_ON_TIMEOUT=1`. The only
+`abort` in the log is Slurm's own. This is consistent with the block landing before a `WorkNCCL` is
+enqueued: there is nothing for the watchdog to time out and nothing for the recorder to record.
+
+So a user gets no error, no timeout and no traceback. The job burns its full allocation and is killed
+by the scheduler.
 
 ## Rates, and a control
 
@@ -111,8 +126,8 @@ attribute to one's own code.
 
 ## Notes
 
-- `exit 124` is our wall cap. We did not test whether these would eventually return, and repeats
-  within one allocation are not independent samples.
+- Repeats within one allocation are not independent samples, though the paired control above uses
+  that deliberately to hold nodes constant.
 - Possibly the same root cause as #20, which is labelled for the `u24r64` generation. This is on
   `u24r70` with the failing call identified.
 - Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this reproducer if useful.
