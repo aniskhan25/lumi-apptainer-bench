@@ -49,9 +49,8 @@ for i in 1 2 3 4 5; do
 done
 ```
 
-A hung run prints `created` for group N on every rank and never prints `collective done`. The group
-it stalls on varies between runs (we saw 1, 2, 3, 4, 5, 7 and 8), and each earlier communicator comes
-up in about 1.5 s, so it is not a fixed ceiling.
+A hung run prints `created` for group N on every rank and never prints `collective done`. Which group it stalls on
+varies between runs, so no particular number of groups is the trigger.
 
 One run left without a wall cap stayed blocked for 59 minutes under the default 600 s timeout, with
 no watchdog message and no flight-recorder dump.
@@ -61,6 +60,3 @@ no watchdog message and no flight-recorder dump.
 - `lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif`, digest `d70ec87f...`
 - PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`, `aws-ofi-nccl 1.20.0-git-a2a6d08`, ROCm 7.0
 - `standard-g`, 4 nodes, 8 ranks/node. Also 3 of 3 hangs at 16 nodes.
-
-Distinct from #20 and #28 as far as I can tell: every rank blocks at the same call, no
-point-to-point operations are involved, and `CUDA_LAUNCH_BLOCKING=1` does not prevent it.
