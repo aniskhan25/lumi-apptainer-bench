@@ -1,5 +1,5 @@
-Paste-ready text for filing. The full record, with every run, timing and control, is in
-[`E6-newgroup-first-collective-hang.md`](E6-newgroup-first-collective-hang.md).
+Everything below the line is the issue text. The full record, with every run, timing and control, is
+in [`E6-newgroup-first-collective-hang.md`](E6-newgroup-first-collective-hang.md).
 
 ---
 
@@ -8,13 +8,12 @@ Paste-ready text for filing. The full record, with every run, timing and control
 
 ---
 
-On 4 nodes / 32 ranks, the first collective on a newly created process group sometimes never
-returns. `new_group()` succeeds, then the `all_reduce` that follows it, which is where RCCL
-initialises the communicator, blocks on every rank indefinitely. There is no exception, no timeout
-and no traceback. The job runs until Slurm kills it.
+On 4 nodes / 32 ranks, `new_group()` returns fine but the first `all_reduce` on that group blocks on
+every rank and never returns. That call is where RCCL sets up the communicator. There is no
+exception, no timeout and no traceback, so the job runs until Slurm kills it.
 
-Hung in 13 of 17 attempts across four allocations. A single-group job in the same allocation passed
-every time, so this affects tensor, pipeline and expert parallelism, not plain DDP.
+Hung in 13 of 17 attempts across four allocations. A single-group job on the same nodes passed every
+time, so this affects tensor, pipeline and expert parallelism, not plain DDP.
 
 ## Reproduce
 
@@ -58,4 +57,4 @@ We left one run alone for an hour. It was still blocked, and PyTorch's own timeo
 
 - `lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif`, digest `d70ec87f...`
 - PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`, `aws-ofi-nccl 1.20.0-git-a2a6d08`, ROCm 7.0
-- `standard-g`, 4 nodes, 8 ranks/node. Also 3 of 3 hangs at 16 nodes.
+- `standard-g`, 4 nodes, 8 ranks/node. Also seen at 16 nodes.
