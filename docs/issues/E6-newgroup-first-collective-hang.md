@@ -88,6 +88,21 @@ Passing `device_id` to `init_process_group` makes initialisation eager and moves
 call instead. Same failure, different call site. That variant hung 2 of 5 allocations at 4 nodes and
 3 of 3 at 16 nodes.
 
+## Who this affects
+
+Multiple process groups are what model parallelism is built on, so the exposure is tensor, pipeline
+and expert parallelism, not data-parallel training.
+
+That is a workload this platform is built for but does not document. The `full` image ships
+`megatron-core 0.15.0rc8`, and Megatron exists only for model-parallel training. Meanwhile
+LUMI-AI-Guide chapter 5 covers DDP and DeepSpeed ZeRO stage 1, and never mentions Megatron or
+tensor, pipeline, expert or model parallelism anywhere in its eleven chapters.
+
+The combination is awkward for users. The documented paths are all single-communicator and pass
+consistently in our testing, which is likely why this has not been reported. The failure sits in
+undocumented territory, produces no error, no timeout and no traceback, and is therefore easy to
+attribute to one's own code.
+
 ## Environment
 
 - `lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif`, digest `d70ec87f…`
