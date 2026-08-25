@@ -40,12 +40,19 @@ export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 export MASTER_PORT="1${SLURM_JOB_ID:0-4}"
 export WORLD_SIZE=$SLURM_NPROCS
 
+# CPU-GPU binding exactly as in LUMI-AI-Guide chapter 05
+CPU_BIND_MASKS="0x00fe000000000000,0xfe00000000000000,0x0000000000fe0000,0x00000000fe000000,0x00000000000000fe,0x000000000000fe00,0x000000fe00000000,0x0000fe0000000000"
+
 for i in 1 2 3 4 5; do
-  timeout 240 srun singularity run $SIF bash -c \
+  timeout 240 srun --cpu-bind=v,mask_cpu=$CPU_BIND_MASKS singularity run $SIF bash -c \
     "export RANK=\$SLURM_PROCID && export LOCAL_RANK=\$SLURM_LOCALID && python3 -u hang.py"
   echo "attempt $i -> exit $?   (124 = hung)"
 done
 ```
+
+The `--cpu-bind=v` verbose flag confirms the masks are actually applied rather than silently
+rejected — our runs logged `cpu-bind=MASK - nid006974, task 16  0: mask 0xfe000000000000 set` for
+every rank.
 
 ## What we see
 
