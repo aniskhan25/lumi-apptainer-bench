@@ -138,6 +138,18 @@ attribute to one's own code.
   here all 32 ranks block at the same call and there are no P2P operations at all. **#30** is the
   `NCCL_NET_GDR_LEVEL` issue and is already concluded. No other issue in the repo mentions process
   groups.
-- Untested: whether `CUDA_LAUNCH_BLOCKING=1`, the #20 workaround, has any effect here. Worth running
-  to firm up the distinction.
+- **`CUDA_LAUNCH_BLOCKING=1` does not prevent it**, so #20's workaround does not apply. Job 21521230
+  alternated both settings inside one allocation on `nid[007259,007266,007269,007276]`:
+
+  | Round | `CUDA_LAUNCH_BLOCKING=0` | `CUDA_LAUNCH_BLOCKING=1` |
+  | --- | --- | --- |
+  | 1 | hung, group 4 | pass |
+  | 2 | hung, group 6 | hung, group 4 |
+  | 3 | pass | hung, group 4 |
+  | 4 | hung, group 3 | pass |
+
+  Off hung 3 of 4, on hung 2 of 4. The rates are too small to say whether the setting reduces the
+  frequency, but it plainly does not suppress the failure. Round 1 alone looked like it did, which is
+  why four rounds were run: with a hang rate near 3/4, a single pass has roughly a 1-in-4 chance of
+  occurring regardless.
 - Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this reproducer if useful.

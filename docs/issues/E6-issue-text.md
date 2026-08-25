@@ -67,6 +67,7 @@ Checked against the existing issues and this looks distinct. #28 is a single-gro
 about 1 s, and a single-group job is exactly that scenario and passes for us. #20 describes one rank
 falling behind while others wait on receive, with `CUDA_LAUNCH_BLOCKING=1` as a workaround and
 `pytorch#174288` (batched `isend`/`irecv`) as the suspected cause; here every rank blocks at the same
-call and no point-to-point operations are involved.
+call and no point-to-point operations are involved. `CUDA_LAUNCH_BLOCKING=1`, the workaround
+suggested in #20, does not prevent this one: it still hung in 2 of 4 rounds with the setting on.
 
 Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this if the RCCL-internal view helps.
