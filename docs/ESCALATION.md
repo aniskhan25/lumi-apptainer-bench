@@ -13,7 +13,7 @@ itself rather than quietly edited away.
 
 | # | What | Target | Status |
 | --- | --- | --- | --- |
-| **E6** | [First collective on a new process group hangs, silently](issues/E6-newgroup-first-collective-hang.md) | `laifs-container-recipes` | **Not filed strongest candidate.** Reproduced 10/13 across 3 allocations under Chapter 5's own launch recipe; localised to lazy RCCL communicator init; no watchdog, no dump, no error |
+| **E6** | [Creating a second process group hangs](issues/E6-issue-text.md) (paste-ready; full record in [`E6-newgroup...`](issues/E6-newgroup-first-collective-hang.md)) | `laifs-container-recipes` | **Not filed strongest candidate.** Reproduced 10/13 across 3 allocations under Chapter 5's own launch recipe; localised to lazy RCCL communicator init; no watchdog, no dump, no error |
 | **E1** | [`fi_info`/`fi_pingpong` shadowed by Intel MPI shims](issues/E1-fi_info-broken.md) | `laifs-container-recipes` | **Not filed candidate.** Low severity, one-line fix. Strengthened 2026-08-21: it also *skips* our `cxi_provider_visible` gate, so it blinds automated fabric checks |
 | **E2** | [#6/#13 GPU-binding fix is doubly opt-in](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` | **Not filed optional.** Verified against guide `main`: no documented workflow is affected. Dead feature + docs gap |
 | **E3** | [JIT cache defaults](issues/E3-jit-cache-defaults.md) | | **Handled** via guide #112. Measurement record retained |
