@@ -128,6 +128,16 @@ attribute to one's own code.
 
 - Repeats within one allocation are not independent samples, though the paired control above uses
   that deliberately to hold nodes constant.
-- Possibly the same root cause as #20, which is labelled for the `u24r64` generation. This is on
-  `u24r70` with the failing call identified.
+- Not a duplicate of the existing issues, as far as we can tell. **#28** is a single-group
+  `init_process_group` hang on the April `torch` build whose cause was identified in-thread as
+  `NCCL_NET_GDR_LEVEL=PHB` plus `NCCL_SOCKET_IFNAME`; removing them fixed it and the reporter
+  confirmed stable 16-node training. We set neither, our default group comes up in ~1 s, and our
+  single-group control is that same scenario and passes 9/9. **#20** attributes its hangs to one rank
+  falling behind while the rest wait on receive, offers `CUDA_LAUNCH_BLOCKING=1` as a workaround, and
+  points at `pytorch#174288`, which concerns `batch_isend_irecv` with hundreds of batched P2P ops;
+  here all 32 ranks block at the same call and there are no P2P operations at all. **#30** is the
+  `NCCL_NET_GDR_LEVEL` issue and is already concluded. No other issue in the repo mentions process
+  groups.
+- Untested: whether `CUDA_LAUNCH_BLOCKING=1`, the #20 workaround, has any effect here. Worth running
+  to firm up the distinction.
 - Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this reproducer if useful.
