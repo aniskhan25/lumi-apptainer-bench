@@ -11,7 +11,8 @@ lazily initialises the communicator, blocks on **all** ranks indefinitely.
 
 There is no timeout, no exception and no flight-recorder dump. The job hangs until Slurm kills it.
 
-Hung in 10 of 13 attempts across three allocations.
+Hung in 13 of 17 attempts across four allocations. A single-communicator job in the same
+allocation passed every time, so the trigger is the additional process groups, not the nodes.
 
 ## Reproduce
 
@@ -58,13 +59,30 @@ zero `Watchdog caught` messages, zero `DistBackendError`, and zero dumps under
 `TORCH_FR_BUFFER_SIZE=2000` + `TORCH_NCCL_DUMP_ON_TIMEOUT=1`. Consistent with the block landing
 before a `WorkNCCL` is enqueued: nothing to time out, nothing to record.
 
-## Rates
+## Rates, and a control
 
 | Job | Nodes | Attempts | Hung |
 | --- | --- | --- | --- |
 | 21436817 | `nid[007434,007455,007457,007461]` | 5 | 5 |
 | 21499264 | `nid[007745-007748]` | 5 | 4 |
 | 21492040 | `nid[006972-006975]` | 3 | 1 |
+| 21516331 | `nid[005818-005821]` | 4 | 3 |
+
+**A single-communicator job is not affected.** In job 21516331 we alternated two workloads inside one
+allocation, on the same four nodes: a plain single-group DDP job (wrap a model in
+`DistributedDataParallel`, one forward/backward, so one communicator) and the eight-group reproducer
+above.
+
+| Round | 1 group | 8 groups |
+| --- | --- | --- |
+| 1 | pass | hung at group 2 |
+| 2 | pass | hung at group 4 |
+| 3 | pass | hung at group 7 |
+| 4 | pass | pass |
+
+Single-group passed 4 of 4 while eight-group hung 3 of 4, in the same allocation, alternating. A
+separate 5-attempt single-group run also passed 5 of 5, so 9 of 9 overall. The trigger is therefore
+creating process groups beyond the default, not node health: the paired design holds nodes constant.
 
 Passing `device_id` to `init_process_group` makes initialisation eager and moves the stall into that
 call instead. Same failure, different call site. That variant hung 2 of 5 allocations at 4 nodes and
