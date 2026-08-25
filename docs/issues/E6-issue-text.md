@@ -61,13 +61,6 @@ no watchdog message and no flight-recorder dump.
 - `lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif`, digest `d70ec87f...`
 - PyTorch `2.10.0+rocm7.0`, RCCL `2.26.6`, `aws-ofi-nccl 1.20.0-git-a2a6d08`, ROCm 7.0
 - `standard-g`, 4 nodes, 8 ranks/node. Also 3 of 3 hangs at 16 nodes.
-Checked against the existing issues and this looks distinct. #28 is a single-group
-`init_process_group` failure on the April build, resolved in that thread by removing
-`NCCL_NET_GDR_LEVEL` and `NCCL_SOCKET_IFNAME`; we set neither, our default group initialises in
-about 1 s, and a single-group job is exactly that scenario and passes for us. #20 describes one rank
-falling behind while others wait on receive, with `CUDA_LAUNCH_BLOCKING=1` as a workaround and
-`pytorch#174288` (batched `isend`/`irecv`) as the suspected cause; here every rank blocks at the same
-call and no point-to-point operations are involved. `CUDA_LAUNCH_BLOCKING=1`, the workaround
-suggested in #20, does not prevent this one: it still hung in 2 of 4 rounds with the setting on.
 
-Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this if the RCCL-internal view helps.
+Distinct from #20 and #28 as far as I can tell: every rank blocks at the same call, no
+point-to-point operations are involved, and `CUDA_LAUNCH_BLOCKING=1` does not prevent it.
