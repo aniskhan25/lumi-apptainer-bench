@@ -49,11 +49,10 @@ for i in 1 2 3 4 5; do
 done
 ```
 
-A hung run prints `created` for group N on every rank and never prints `collective done`. Which group it stalls on
-varies between runs, so no particular number of groups is the trigger.
+A hung run prints `created` for group N on every rank and never prints `collective done`. Which
+group it stalls on varies between runs, so no particular number of groups is the trigger.
 
-One run left without a wall cap stayed blocked for 59 minutes under the default 600 s timeout, with
-no watchdog message and no flight-recorder dump.
+We left one run alone for an hour. It was still blocked, and PyTorch's own timeout never fired.
 
 ## Environment
 
