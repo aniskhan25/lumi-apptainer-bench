@@ -53,16 +53,8 @@ A hung run prints `created` for group N on every rank and never prints `collecti
 it stalls on varies between runs (we saw 1, 2, 3, 4, 5, 7 and 8), and each earlier communicator comes
 up in about 1.5 s, so it is not a fixed ceiling.
 
-Left without a wall cap and with the default 600 s process-group timeout, one run stayed blocked for
-59 minutes with a heartbeat thread still printing, and ended only here:
-
-```
-slurmstepd: error: *** STEP 21518451.0 CANCELLED AT 2026-08-25T13:15:44 DUE TO TIME LIMIT ***
-```
-
-In that hour there were no `Watchdog caught` messages, no `DistBackendError`, and no flight-recorder
-dumps under `TORCH_FR_BUFFER_SIZE=2000` with `TORCH_NCCL_DUMP_ON_TIMEOUT=1`, which fits the block
-landing before a `WorkNCCL` is enqueued.
+One run left without a wall cap stayed blocked for 59 minutes under the default 600 s timeout, with
+no watchdog message and no flight-recorder dump.
 
 ## Environment
 
