@@ -1,4 +1,4 @@
-# Phase 4 results — JIT cache under rank pressure (report §4.7)
+# Phase 4 results. JIT cache under rank pressure (report §4.7)
 
 **Image:** `lumi-multitorch-latest.sif` → `...full-u24r70f21m50t210-20260513_121430.sif`
 **Partition:** `standard-g`, 16 nodes, 8 ranks/node, world size 128
@@ -7,7 +7,7 @@
 
 ---
 
-## REPRODUCED — and the mechanism is more specific than "Lustre writes aren't atomic"
+## REPRODUCED; and the mechanism is more specific than "Lustre writes aren't atomic"
 
 | Arm | Ranks | Compilations/rank | Failed ranks | Corruption | Compile time | Gate |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ time it calls `open()` the writer has renamed it away. `FileNotFoundError`, logg
 | `.45089.23386800717952.tmp` | 19, 92 | 2, 11 |
 
 Several readers on *different* nodes report the *same* temp filename. That is what one
-writer's temp file seen by many readers looks like — every reader reports the writer's
+writer's temp file seen by many readers looks like; every reader reports the writer's
 `pid.tid`. It does not require two processes to have picked the same PID.
 
 **Why per-node `/tmp` fixes it.** Two effects compound. The directory is shared by 8 ranks
@@ -77,8 +77,8 @@ write→rename window is far narrower than on Lustre, which is consistent with t
 time difference measured below. Widening that window is what turns a theoretical race into a
 frequent one.
 
-80 warnings landed across the cache subdirectories — `inductor/codecache` (70),
-`aotautograd` (6), `fxgraph` (4) — hitting **9 distinct ranks**. The `tmp` arm produced
+80 warnings landed across the cache subdirectories, `inductor/codecache` (70),
+`aotautograd` (6), `fxgraph` (4); hitting **9 distinct ranks**. The `tmp` arm produced
 **zero**.
 
 ### Most ranks survive; one does not
@@ -90,7 +90,7 @@ compile worker for `triton_poi_fused_add_gelu_0`, at shape 1664, and did not rec
 So the failure is probabilistic: the race is common, recovery is usual, and occasionally a
 rank loses outright. At 128 ranks × 24 compilations that came out as 1 hard failure. A real
 training job compiles far more often over far longer, so the expected number of hard
-failures grows accordingly — which matches the report's account of this being invisible at
+failures grows accordingly; which matches the report's account of this being invisible at
 small scale and expensive at large scale.
 
 ### Relationship to the reported symptom
@@ -104,7 +104,7 @@ not reproduced; the mechanism behind it was.
 One deliberate difference: their failure killed a rank, which hung the rest at the next
 collective. This test catches per-shape exceptions and keeps going, so the failing rank
 still reports and still reaches the barrier (`barrier_after_compile_ok: true`). That
-converts a hang into a diagnosable failure on purpose — a hang produces no evidence.
+converts a hang into a diagnosable failure on purpose; a hang produces no evidence.
 
 ---
 
@@ -143,7 +143,7 @@ default. Measured inside the image, those defaults split two ways:
 Worth being precise about what this means for the failure above: the failing arm set
 `TORCHINDUCTOR_CACHE_DIR` explicitly, and the default for that one variable is already
 node-local. So a user who changes nothing does not hit this. They are steered into it
-instead — the LUMI-AI-Guide sets a cache block in 17 job scripts whose stated purpose is
+instead; the LUMI-AI-Guide sets a cache block in 17 job scripts whose stated purpose is
 "to avoid saving to home directory", covering MIOpen's kernel cache and `TORCH_HOME`
 (→ `/scratch`) but none of the three torch/Triton JIT variables. Completing that pattern the
 way the guide models it, by pointing the missing three at `/scratch`, builds exactly the
@@ -161,14 +161,14 @@ of the exercise so far.
 Recording these because both would have produced a false clean result, and one already did.
 
 **1. Dynamo collapsed the shape sweep (silent no-op).** The first 128-rank run passed with
-24 shapes — but only the first two shapes actually compiled (9.9 s, 1.8 s) and shapes 3–24
+24 shapes; but only the first two shapes actually compiled (9.9 s, 1.8 s) and shapes 3–24
 took **0.00 s**. Dynamo's `automatic_dynamic_shapes` notices a changing dimension after the
 second recompile and emits one dynamic kernel serving all later shapes, so a 24-shape run
 generated exactly as many cache entries as a 6-shape one (82 Triton files in both). The
 escalation applied no additional pressure and the "pass" meant nothing.
 
 Fixed with `dynamic=False`, `automatic_dynamic_shapes=False`, and `torch._dynamo.reset()`
-before each shape — the reset also forces the on-disk cache to be re-read, which is the path
+before each shape; the reset also forces the on-disk cache to be re-read, which is the path
 the report's `JSONDecodeError` came from. After the fix: 962 cache files and 24 real
 compilations per rank, and the failure appeared.
 
@@ -183,12 +183,12 @@ below minimum 6`.
 
 ---
 
-## Earlier 64-rank runs — superseded
+## Earlier 64-rank runs, superseded
 
 The first Phase 4 runs (64 ranks, 6 shapes, both modes) both passed, as did the 128-rank
 24-shape runs before the Dynamo fix. All four are superseded by defect 1 above: they
 performed only 2 real compilations each. They are not evidence that Lustre caching is safe
-at 64 ranks — they are evidence that the test was not yet applying pressure. Re-running the
+at 64 ranks; they are evidence that the test was not yet applying pressure. Re-running the
 64-rank case with forced compilation would establish where the threshold actually sits.
 
 ---
@@ -210,7 +210,7 @@ at 64 ranks — they are evidence that the test was not yet applying pressure. R
 
 The suite now has a demonstrated true positive: it fails on a real, reproducible defect and
 passes on the corrected configuration. That was the outstanding gap noted in
-`docs/VALIDATION.md` — a gate suite that has never failed has not been shown to detect
+`docs/VALIDATION.md`; a gate suite that has never failed has not been shown to detect
 anything.
 
 ---

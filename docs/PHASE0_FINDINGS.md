@@ -1,4 +1,4 @@
-# Phase 0 findings — desk analysis, no GPU hours
+# Phase 0 findings; desk analysis, no GPU hours
 
 Analysis of the `lumi-multitorch` latest container against the ten findings in the
 `project_465003047` experience report, from artifacts already published with the release.
@@ -12,7 +12,7 @@ Nothing here required an allocation.
        lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif
 ```
 
-As of 2026-08-04 the `-latest` symlink still points at the May 13 build — the build the
+As of 2026-08-04 the `-latest` symlink still points at the May 13 build; the build the
 report identifies as regressed. Every user who follows the documented `-latest` path gets
 this image.
 
@@ -33,7 +33,7 @@ releases are
 ```
 
 So the suspect image has been the default for roughly two and a half months, and the
-report's workaround — pin April, never use `-latest` — is still the only mitigation in
+report's workaround; pin April, never use `-latest`; is still the only mitigation in
 circulation.
 
 **Artifacts available in the release directory.** Worth stating because the roadmap
@@ -48,14 +48,14 @@ assumed they did not exist:
 | `*-tests.md` | Results of the automated release test suite |
 | `*.json`, `*.log` | Image config and build log |
 
-The release also ships six layered variants — `rocm`, `torch`, `libfabric`, `mpich`,
+The release also ships six layered variants; `rocm`, `torch`, `libfabric`, `mpich`,
 `full`, `plus`. The `full` variant is the one in general use. Because `libfabric` and
 `mpich` are separate layers of the *same* release, they give a layer-isolation axis that
 does not require reaching for an older image.
 
 ---
 
-## F1 — The release test suite has no all-to-all test
+## F1. The release test suite has no all-to-all test
 
 ### Symptom
 Report §4.1: "A single-node NCCL probe PASSED on the regressed build while real
@@ -89,7 +89,7 @@ narrower and more specific:
    MoE expert dispatch.
 2. **`osu-inter-node-gcd2gcd-bw` runs one process per node.** It therefore opens a
    handful of CXI endpoints. An 8-rank-per-node all-to-all opens far more. `PTLTE_NOT_FOUND`
-   concerns Portals table entries — a finite per-node resource — so a test that keeps the
+   concerns Portals table entries; a finite per-node resource; so a test that keeps the
    endpoint count structurally low cannot reach the failure regardless of how many nodes
    it spans.
 3. **Failing tests do not block release.** This image shipped with two FAILs
@@ -107,7 +107,7 @@ future run from satisfying the suite without exercising the pattern.
 
 ---
 
-## F2 — Candidate root cause for the all-to-all regression, from the published diff
+## F2. Candidate root cause for the all-to-all regression, from the published diff
 
 ### Why no bisection is needed
 The roadmap proposed bisecting image changes. `*-release.md` already publishes the
@@ -126,7 +126,7 @@ Comms-stack changes, complete:
 Everything else in the APT diff is Ubuntu security patching (`curl`, `libpng`,
 `python3.12`, `linux-libc-dev`, …).
 
-`aws-ofi-nccl` is the RCCL↔libfabric/CXI plugin — the component that maps RCCL
+`aws-ofi-nccl` is the RCCL↔libfabric/CXI plugin; the component that maps RCCL
 collectives onto Slingshot, and the layer that would surface a Portals error. It is the
 prime candidate. The `torch` rebuild is secondary: same upstream version, but a different
 LUMI AIF build, so the bundled RCCL may differ.
@@ -150,13 +150,13 @@ Two consequences:
   user gets by default, and nobody upstream is tracking it. Filing it is arguably the
   single highest-value action available from this whole exercise, and it costs nothing.
 - Issue #27 corresponds to the two FAILs in the shipped `-tests.md`
-  (`bitsandbytes-inference-int8`). So LAIF *does* track its own failing tests — they are
+  (`bitsandbytes-inference-int8`). So LAIF *does* track its own failing tests, they are
   visible and filed, just not release-blocking. That is a more accurate statement than
   "failing tests are ignored", and it means the release gate is the thing to change, not
   the tracking.
 
 ### Classification
-Unresolved pending measurement — this is a candidate, not a confirmed cause. Recorded
+Unresolved pending measurement; this is a candidate, not a confirmed cause. Recorded
 here so Phase 2/3 can test the hypothesis directly rather than rediscovering it.
 
 ### Falsification test
@@ -165,7 +165,7 @@ If a cross-node all-to-all on the latest image passes cleanly at EP=16 and EP=32
 
 ---
 
-## F3 — GPU binding moved into an ENTRYPOINT that `apptainer exec` never runs
+## F3. GPU binding moved into an ENTRYPOINT that `apptainer exec` never runs
 
 ### Symptom
 Candidate mechanism for a multi-node-only, scale-dependent fabric failure.
@@ -173,7 +173,7 @@ Candidate mechanism for a multi-node-only, scale-dependent fabric failure.
 ### Evidence
 `*-release.md`, under Major Updates:
 
-> **Replace SIF runscript with OCI entrypoint** — Certain runtime variables like
+> **Replace SIF runscript with OCI entrypoint**. Certain runtime variables like
 > `FI_HMEM_DISABLE_P2P` were previously set using a runscript that was included in the
 > container's SIF definition file. This is now done using an entrypoint script included in
 > the OCI image.
@@ -203,16 +203,16 @@ follows is the same.
 
 The published release notes (verified against the GitHub release body, byte-identical to
 the local `*-release.md`) describe the refactor and name `FI_HMEM_DISABLE_P2P` as an
-example of a variable that moved — but **carry no caveat that `exec` bypasses an
+example of a variable that moved; but **carry no caveat that `exec` bypasses an
 ENTRYPOINT while `run` does not**, and do not mention the GPU-binding variables that moved
 with it. A user reading the notes has no way to know their launch mode now matters.
 
 ### Reasoning
 `FI_HMEM_DISABLE_P2P` is gated to `SLURM_NNODES = 1`, so losing it cannot explain a
-multi-node failure — that strand is discarded. The **GPU-binding** exports are the
+multi-node failure; that strand is discarded. The **GPU-binding** exports are the
 relevant ones. Under `exec` they never fire, so with `--ntasks-per-node=8` every rank
 sees all 8 GCDs rather than one. That multiplies per-node device contexts and fabric
-endpoints, which is the kind of pressure that exhausts a finite per-node CXI resource —
+endpoints, which is the kind of pressure that exhausts a finite per-node CXI resource
 and it would only bite once the collective leaves the node, matching the reported
 symptom.
 
@@ -222,7 +222,7 @@ symptom.
 - Platform integration: interaction between Apptainer's exec semantics and OCI metadata.
 
 ### Classification
-Container defect (candidate) + documentation defect. **Not confirmed** — no run yet.
+Container defect (candidate) + documentation defect. **Not confirmed**; no run yet.
 
 ### Falsification test
 Phase 1, one node, ~one node-minute. Three arms, comparing
@@ -243,7 +243,7 @@ comparison cheap to run.
 
 ---
 
-## F4 — A changelog already exists; the problem is discoverability
+## F4. A changelog already exists; the problem is discoverability
 
 ### Symptom
 Report §4.1 suggestion: "a short changelog or a known-issues note for the
@@ -252,28 +252,28 @@ Report §4.1 suggestion: "a short changelog or a known-issues note for the
 ### Finding
 All three already exist and ship with the release:
 
-- `*-release.md` — release notes plus the complete APT/PyPI diff against the prior build.
+- `*-release.md`; release notes plus the complete APT/PyPI diff against the prior build.
 - A recipe-level diff link:
   `github.com/lumi-ai-factory/laifs-container-recipes/compare/<april-tag>...<may-tag>`
 - A known-issues query:
   `github.com/lumi-ai-factory/laifs-container-recipes/issues?q=label%3A<release-tag>`
-- `*-tests.md` — the automated test results for the release.
+- `*-tests.md`; the automated test results for the release.
 
 The user, who diagnosed the regression in detail and pinned the April build in response,
 never found any of it.
 
-The known-issues mechanism is not merely present but working — the label carries two live
+The known-issues mechanism is not merely present but working; the label carries two live
 issues (#27, #24). So the machinery the report asks for already exists and is maintained;
 what failed is the path from a user hitting a problem to that machinery.
 
 ### Classification
-Documentation defect — discoverability, not absence. The remedy is a pointer from the
+Documentation defect; discoverability, not absence. The remedy is a pointer from the
 LUMI AI Factory software-environment docs to the per-release artifacts sitting next to
 each image, plus a statement of where to file, not new artifacts.
 
 ---
 
-## F5 — `expandable_segments` is confirmed unavailable
+## F5; `expandable_segments` is confirmed unavailable
 
 ### Symptom
 Report §4.2: OOM near 57 GiB of 63.98 GiB nameplate; runs log
@@ -291,12 +291,12 @@ probe raises it as a run warning so users see it before an OOM rather than after
 
 ### Classification
 Upstream framework limitation (ROCm/PyTorch) + documentation defect. The allocator cannot
-compact fragmentation, so a per-GCD planning ceiling — the report plans against ~40 GB,
-not 57 and certainly not 64 — should be published rather than left to be rediscovered.
+compact fragmentation, so a per-GCD planning ceiling; the report plans against ~40 GB,
+not 57 and certainly not 64; should be published rather than left to be rediscovered.
 
 ---
 
-## F6 — Pre-flight: this repo's own multi-node templates set a known-hanging variable
+## F6. Pre-flight: this repo's own multi-node templates set a known-hanging variable
 
 Found while preparing the branch, not from the report.
 
@@ -309,7 +309,7 @@ NCCL_NET_GDR_LEVEL=PHB
 ```
 
 `NCCL_NET_GDR_LEVEL=PHB` forces GDR even where the CXI/GDR path is broken and is recorded
-in this project as a confirmed cause of indefinite allreduce hangs — job 19624583 hung
+in this project as a confirmed cause of indefinite allreduce hangs; job 19624583 hung
 until it was removed, then completed in 24 s. `lumi_common.sh`'s own default was already
 `0`; the two wrappers overrode it back on.
 
@@ -327,10 +327,10 @@ Harness defect, fixed on this branch.
 | Report item | Disposition |
 | --- | --- |
 | §4.4 EP=32 all-to-all fails on the fabric | **In scope, Phase 3.** The primary target. |
-| §4.5 45-min bootstrap at 1024 ranks | **Cannot reproduce within a 16-node ceiling.** Phases instrumented and measured at 1–16 nodes; the 1024-rank figure will be marked not-reproduced. Note node/CXI warmth is a confound the roadmap missed — this project has measured 10–15 min cold starts at *2* nodes and nodes that hang indefinitely, so rank count alone does not explain the number. |
+| §4.5 45-min bootstrap at 1024 ranks | **Cannot reproduce within a 16-node ceiling.** Phases instrumented and measured at 1–16 nodes; the 1024-rank figure will be marked not-reproduced. Note node/CXI warmth is a confound the roadmap missed this project has measured 10–15 min cold starts at *2* nodes and nodes that hang indefinitely, so rank count alone does not explain the number. |
 | §4.7 Lustre JIT cache corruption | **In scope, Phase 4.** Needs ≥64 ranks. `LAIF_CACHE_MODE=lustre` reproduces, `tmp` validates the fix. |
-| §4.8 `torch_dist` checkpoint hang | **Deferred** — needs Megatron. Also demoted from release-blocking: a hang was observed, corruption never was. |
-| §4.9 QOS limit discoverability | **Out of scope** — Slurm policy, not container. |
+| §4.8 `torch_dist` checkpoint hang | **Deferred** needs Megatron. Also demoted from release-blocking: a hang was observed, corruption never was. |
+| §4.9 QOS limit discoverability | **Out of scope** Slurm policy, not container. |
 | §2.1 packed-sequence attention leakage | **Deferred and reclassified.** No leakage was observed; the reporter identified that micro-batch > 1 *would* leak and pinned mbs=1. This is a property of the Megatron/flash-attn varlen path, not a container defect. |
-| §6 Megatron-Core observations | **Deferred** — Phase 1 is pure PyTorch. The container bundles 0.15.0rc8 while the report ran a 0.16.1 `PYTHONPATH` overlay, so the shipped version was never the version exercised. |
+| §6 Megatron-Core observations | **Deferred** Phase 1 is pure PyTorch. The container bundles 0.15.0rc8 while the report ran a 0.16.1 `PYTHONPATH` overlay, so the shipped version was never the version exercised. |
 | §4.10 383 vs 191.5 TF/s per GCD | **In scope, cheap.** MI250X bf16 peak is per OAM module (two GCDs); per GCD it is 191.5. This repo reports per-GCD TFLOPS, so any MFU derived from it is exposed to the same factor-of-two error. |

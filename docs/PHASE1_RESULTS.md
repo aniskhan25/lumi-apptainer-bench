@@ -1,4 +1,4 @@
-# Phase 1 results — one node, capability probe
+# Phase 1 results; one node, capability probe
 
 **Image:** `lumi-multitorch-latest.sif` → `lumi-multitorch-full-u24r70f21m50t210-20260513_121430.sif`
 **Digest:** `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
@@ -14,19 +14,19 @@ Every value below is read from inside the running job, not from the image manife
 
 | Component | Version | Matches report? |
 | --- | --- | --- |
-| Python | 3.12.3 | — |
+| Python | 3.12.3 | |
 | PyTorch | `2.10.0+rocm7.0_lumi_aif_20260513142306` | yes (`2.10.0+rocm7.0`) |
 | HIP runtime | `7.0.51831` | yes, exactly |
 | RCCL | `2.26.6` | not stated in report |
 | Triton | `3.6.0` | yes |
 | flash-attn | `2.8.4+lumi_aif_gfx90a_bbe25ba` | yes |
-| apex | `1.10.0+lumi_aif_gfx90a_73423b4` | — |
-| Megatron-Core | `0.15.0rc8+lumi_aif_c333868` | **yes** — confirms the container ships 0.15.0rc8 |
-| transformer-engine | absent | — |
+| apex | `1.10.0+lumi_aif_gfx90a_73423b4` | |
+| Megatron-Core | `0.15.0rc8+lumi_aif_c333868` | **yes** confirms the container ships 0.15.0rc8 |
+| transformer-engine | absent | |
 | Device | AMD Instinct MI250X, `gfx90a:sramecc+:xnack-`, 63.98 GiB | yes, exactly |
 | aws-ofi-nccl | `1.19.1-git-206c02c` | confirms the May build's plugin |
-| libfabric (library) | `1.27.0` at `/usr/lib/x86_64-linux-gnu/` | — |
-| `RLIMIT_NOFILE` | 131072 soft and hard | — |
+| libfabric (library) | `1.27.0` at `/usr/lib/x86_64-linux-gnu/` | |
+| `RLIMIT_NOFILE` | 131072 soft and hard | |
 
 The `torch` build string carries the May 13 timestamp, confirming the rebuild noted in the
 release diff. Megatron-Core `0.15.0rc8` confirms report §6: the shipped version was never
@@ -34,7 +34,7 @@ the version the reporter exercised, since they overlaid 0.16.1 on `PYTHONPATH`.
 
 ---
 
-## H1 — CONFIRMED: the container's GPU binding is inert under `apptainer exec`
+## H1. CONFIRMED: the container's GPU binding is inert under `apptainer exec`
 
 The hypothesis from `docs/PHASE0_FINDINGS.md` F3, tested in three arms.
 
@@ -46,7 +46,7 @@ The hypothesis from `docs/PHASE0_FINDINGS.md` F3, tested in three arms.
 
 Arm B is the decisive one. `ROCR_USE_SLURM_LOCALID=1` and
 `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` were both confirmed present *inside* the container in
-that arm — the probe's environment dump shows them — and binding still did not happen. So
+that arm; the probe's environment dump shows them; and binding still did not happen. So
 the cause is the ENTRYPOINT never being executed, not an unset variable. Arm C shows the
 same entrypoint working correctly when reached via `run`, and additionally setting
 `HIP_VISIBLE_DEVICES`, which arm A does not.
@@ -76,17 +76,17 @@ Checking that also turned up a second condition I had missed, which matters more
 `ROCR_USE_SLURM_LOCALID` or `MAP_HIP_TO_ROCR_VISIBLE_DEVICES`, and neither name appears in the
 release notes, the LUMI docs search index, or any guide script. Arm C only bound devices because
 this test exported them. The guide's own `run_ddp_srun_4.sh` uses `run` with 8 tasks per node and
-sets neither, so it gets no container-side binding either — it works because
+sets neither, so it gets no container-side binding either; it works because
 `ddp_visiontransformer.py` binds from `LOCAL_RANK`. So the mechanism is doubly opt-in and reaches
 no documented workflow.
 
 **Consequence for a user:** with `srun --ntasks-per-node=8` + `exec` and no launcher-side
 binding, every rank sees all 8 GCDs. A script that does not explicitly select a device
-lands all 8 ranks on GCD 0, leaving 7 idle. This repo is insulated by accident —
+lands all 8 ranks on GCD 0, leaving 7 idle. This repo is insulated by accident:
 `lumi_common.sh` sets `ROCR_VISIBLE_DEVICES` itself, and `distributed.local_cuda_index()`
-falls back to `LOCAL_RANK % device_count` — but neither protection comes from the container.
+falls back to `LOCAL_RANK % device_count`; but neither protection comes from the container.
 
-**Not established — correcting my Phase 0 framing.** I wrote that the lost binding
+**Not established; correcting my Phase 0 framing.** I wrote that the lost binding
 "multiplies per-node fabric endpoints ~8×" and was therefore a candidate mechanism for
 `PTLTE_NOT_FOUND`. That claim is weaker than I presented it. In the reporter's actual
 pattern (`srun --ntasks-per-node=1` → `exec` → `torchrun --nproc_per_node=8`) `SLURM_LOCALID`
@@ -102,7 +102,7 @@ Container defect + documentation defect. Confirmed, 3/3 arms reproduced as predi
 
 ---
 
-## H2 — CONFIRMED: `expandable_segments` is unsupported, verbatim
+## H2. CONFIRMED: `expandable_segments` is unsupported, verbatim
 
 Report §4.2 reproduced exactly on the latest container:
 
@@ -112,7 +112,7 @@ UserWarning: expandable_segments not supported on this platform
 ```
 
 Obtained by running a subprocess with `PYTORCH_HIP_ALLOC_CONF=expandable_segments:True`
-actually set and allocating a 64 MiB tensor. The allocation itself succeeds — the option is
+actually set and allocating a 64 MiB tensor. The allocation itself succeeds; the option is
 accepted and silently ignored, which is why the OOM message keeps recommending it.
 
 This matters because it is the only lever that would let the allocator compact
@@ -132,7 +132,7 @@ Upstream framework limitation, confirmed. Documentation defect for LAIF.
 
 ---
 
-## H3 — NEW FINDING: `fi_info` is broken in every variant of the release
+## H3. NEW FINDING: `fi_info` is broken in every variant of the release
 
 Not from the report. Found while resolving why the probe's CXI check failed.
 
@@ -155,7 +155,7 @@ variants of the 2026-05-13 release:
 
 The libfabric *library* is present and healthy (`libfabric.so.1.27.0`); only the
 command-line tools are missing from the path their wrappers expect. `/opt/cray` is not
-bind-mounted, so the host's Cray libfabric and `libcxi` are not visible either — by design
+bind-mounted, so the host's Cray libfabric and `libcxi` are not visible either, by design
 for a self-contained LAIF image, but it means the container's own tooling is the only way
 in.
 
@@ -165,14 +165,14 @@ then fails with a message about a missing file that names neither libfabric nor 
 problem. The reporter had no way to enumerate fabric providers from inside the container
 while diagnosing §4.1 and §4.4.
 
-Cheap to fix and easy to gate — the `fi_info_runs` gate now covers it.
+Cheap to fix and easy to gate; the `fi_info_runs` gate now covers it.
 
 ### Classification
 Container defect (packaging), confirmed across all variants. Reproduction 4/4.
 
 ---
 
-## H4 — Harness finding: LUMI CPU bind masks require an exclusive full node
+## H4. Harness finding: LUMI CPU bind masks require an exclusive full node
 
 Job 20671589 aborted immediately:
 
@@ -197,7 +197,7 @@ node.
 
 - **Apex extension load costs ~66 s per rank on a cold node.** All 8 ranks reported
   `Time to load amp_C op: ~66 s` simultaneously. With `LAIF_CACHE_MODE=tmp` the cache is
-  node-local, so this is paid again on every new node — relevant background to report §4.5
+  node-local, so this is paid again on every new node; relevant background to report §4.5
   on long startup, and worth measuring properly in Phase 4 alongside the cache work.
 - **`/tmp` is `tmpfs` and node-local**, so the per-node cache default is sound.
 - **All required mounts present:** `/scratch`, `/projappl`, `/project`, `/flash`, `/appl`,
@@ -223,9 +223,9 @@ node.
 | `triton_cache_off_lustre` | pass |
 | `inductor_cache_off_lustre` | pass |
 | `scratch_visible` / `projappl_visible` | pass |
-| `device_count_matches_binding` | pass in arm A / **fail in arm B** (8) — as designed |
+| `device_count_matches_binding` | pass in arm A / **fail in arm B** (8) as designed |
 | `fi_info_runs` | **fail** (H3) |
-| `cxi_provider_visible` | skipped — blocked by H3 |
+| `cxi_provider_visible` | skipped blocked by H3 |
 
 The suite is doing its job: it fails on a real defect, and the one arm that should fail
 does.
@@ -236,5 +236,5 @@ does.
 
 Phase 2, two nodes: all-to-all correctness and bandwidth at EP=8 (intra-node XGMI control)
 then EP=16 (crosses Slingshot). `EXCLUDE_NODES` mandatory from here. The open question H1
-did not settle — whether the all-to-all regression reproduces on the latest container at
-all — is what Phase 2 and 3 exist to answer.
+did not settle; whether the all-to-all regression reproduces on the latest container at
+all; is what Phase 2 and 3 exist to answer.

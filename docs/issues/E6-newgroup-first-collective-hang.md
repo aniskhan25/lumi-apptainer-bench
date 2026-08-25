@@ -6,8 +6,8 @@
 ## Summary
 
 On 4 nodes / 32 ranks, the first collective on a newly created world-spanning process group
-sometimes never returns. `new_group()` succeeds; the `all_reduce` after it — where RCCL lazily
-initialises the communicator — blocks on **all** ranks, indefinitely.
+sometimes never returns. `new_group()` succeeds. The `all_reduce` after it, which is where RCCL
+lazily initialises the communicator, blocks on **all** ranks indefinitely.
 
 There is no timeout, no exception and no flight-recorder dump. The job hangs until Slurm kills it.
 
@@ -49,7 +49,7 @@ done
 ## Observed
 
 Every rank prints `created` for group N; **no** rank prints `collective done`. The group index at
-which it stalls varies — we saw 2, 4, 5 and 8 — and each earlier communicator comes up in ~1.5 s.
+which it stalls varies (we saw 2, 4, 5 and 8), and each earlier communicator comes up in ~1.5 s.
 So it is not a ceiling or a limit at a particular count. All 32 ranks block at the same call, so
 there is no straggler.
 
@@ -67,7 +67,7 @@ before a `WorkNCCL` is enqueued: nothing to time out, nothing to record.
 | 21492040 | `nid[006972-006975]` | 3 | 1 |
 
 Passing `device_id` to `init_process_group` makes initialisation eager and moves the stall into that
-call instead — same failure, different call site. That variant hung 2 of 5 allocations at 4 nodes and
+call instead. Same failure, different call site. That variant hung 2 of 5 allocations at 4 nodes and
 3 of 3 at 16 nodes.
 
 ## Environment
@@ -78,8 +78,8 @@ call instead — same failure, different call site. That variant hung 2 of 5 all
 
 ## Notes
 
-- `exit 124` is our wall cap; we did not test whether these would eventually return. Repeats within
-  one allocation are not independent samples.
+- `exit 124` is our wall cap. We did not test whether these would eventually return, and repeats
+  within one allocation are not independent samples.
 - Possibly the same root cause as #20, which is labelled for the `u24r64` generation. This is on
   `u24r70` with the failing call identified.
 - Happy to run `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on this reproducer if useful.

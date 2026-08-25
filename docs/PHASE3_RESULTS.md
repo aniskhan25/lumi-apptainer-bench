@@ -1,4 +1,4 @@
-# Phase 3 results — four nodes, EP=32
+# Phase 3 results; four nodes, EP=32
 
 **Image:** `lumi-multitorch-latest.sif` → `...full-u24r70f21m50t210-20260513_121430.sif`
 **Digest:** `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
@@ -9,7 +9,7 @@
 
 ---
 
-## EP=32 does not reproduce the reported failure — 3/3 clean
+## EP=32 does not reproduce the reported failure, 3/3 clean
 
 | Run | World | Group | Groups | Spans nodes | Correctness | Uneven | Churn | Gate |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -98,15 +98,15 @@ Per-rank bandwidth at 16 MiB across everything measured so far:
 | EP=16 (4 nodes, 2 groups) | 2 | 10.05 | 4.9× slower |
 | EP=32 (4 nodes, mean of 3) | 4 | 7.45 | **6.7× slower** |
 
-Going from 1 node to 2 costs roughly 5×. Going from 2 nodes to 4 — doubling the group again
-— costs only a further ~1.2×. **The penalty is almost entirely paid at the first node
+Going from 1 node to 2 costs roughly 5×. Going from 2 nodes to 4; doubling the group again
+costs only a further ~1.2×. **The penalty is almost entirely paid at the first node
 boundary and then largely flattens.**
 
 That sharpens the report's design rule in a useful way. The rule is not "smaller expert
 groups are proportionally faster"; it is "keep the expert all-to-all *on the node*". Once a
 group has left the node, growing it from 16 to 32 ranks is comparatively cheap. For a user
 who cannot fit EP=8, this says there is little throughput reason to prefer EP=16 over EP=32
-— the decision has already been made by crossing the boundary. The report could not measure
+the decision has already been made by crossing the boundary. The report could not measure
 this because EP=32 never initialised for them.
 
 ---
@@ -119,14 +119,14 @@ node-local exchange.
 
 Provisional bandwidth floors were cleared with wide margins again (worst case 6.631 GB/s
 against a 1.5 GB/s floor). With variance now measured at ±10% at the top size, a
-recalibrated cross-node floor of roughly 5 GB/s at 16 MiB would be defensible — still
+recalibrated cross-node floor of roughly 5 GB/s at 16 MiB would be defensible, still
 generous, but it would actually bite. Deferred to Phase 5.
 
 ---
 
 ## Next
 
-**Answered — see [`docs/EP32_16NODE_RESULTS.md`](EP32_16NODE_RESULTS.md).** The 16-node /
+**Answered; see [`docs/EP32_16NODE_RESULTS.md`](EP32_16NODE_RESULTS.md).** The 16-node /
 128-rank / EP=32 configuration with four concurrent meshes was run and **passes 2/2**, so
 report §4.4 does not reproduce in its own topology either. Per-rank bandwidth is flat in job
 size (7.54 / 7.69 / 7.56 GB/s at 4 MiB across 4-node and 16-node runs).

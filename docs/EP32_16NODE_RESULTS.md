@@ -1,4 +1,4 @@
-# EP=32 at 16 nodes — the matching topology for report §4.4
+# EP=32 at 16 nodes; the matching topology for report §4.4
 
 Follow-up to the open question left by `docs/PHASE3_RESULTS.md`: Phase 3 ran one 32-rank
 mesh on four nodes, while the report's failure was at 16 nodes, where EP=32 means **four
@@ -47,7 +47,7 @@ and concurrent-communicator count should bite. Both now match and it still passe
 
 ## The likely explanation: they were on the April build
 
-Report §4.4 was observed on the **April 2026** container — the build they pinned after the
+Report §4.4 was observed on the **April 2026** container; the build they pinned after the
 May regression described in §4.1. This run is on the **May** build. So the most economical
 reading is that the two findings are not in tension:
 
@@ -62,7 +62,7 @@ directions.
 This branch is scoped to the latest container only, so no A/B run was made and this
 inference is not tested. It does not need to be tested to be actionable: what matters
 operationally is that EP=32 works on the image users get today, which the report explicitly
-could not tell them — "we have no throughput number for EP=32 at all because it never
+could not tell them; "we have no throughput number for EP=32 at all because it never
 initialised."
 
 ---
@@ -83,8 +83,8 @@ Latency at 16 MiB: 2434.7 and 2449.9 µs (vs ~2100–2450 µs at four nodes).
 
 **Per-rank cost is flat in job size.** At 4 MiB the three configurations agree to within 2%
 (7.544 / 7.689 / 7.562), despite the job growing 4× and the number of concurrent meshes
-growing 4×. That is the expected behaviour — each rank still exchanges with 31 peers
-regardless of how many other meshes exist — and it says the fabric absorbs four concurrent
+growing 4×. That is the expected behaviour; each rank still exchanges with 31 peers
+regardless of how many other meshes exist; and it says the fabric absorbs four concurrent
 32-rank all-to-alls without measurable contention at these message sizes.
 
 At 16 MiB the 16-node runs sit ~11% below the four-node mean (6.65 vs 7.45), which is at the
@@ -94,15 +94,15 @@ than established.
 Small messages are noticeably noisier at 128 ranks: 16 KiB bandwidth differs by 36% between
 the two runs (0.070 vs 0.045) and latency by 55% (227.9 vs 353.8 µs). Small-message
 all-to-all is latency- and jitter-bound, and more ranks means more exposure to the slowest
-one — the max-across-ranks reduction in the metric makes that visible by design.
+one; the max-across-ranks reduction in the metric makes that visible by design.
 
 ---
 
 ## Incidental: no sign of a slow bootstrap at this scale
 
 Report §4.5 describes ~45 minutes of Gloo/NCCL bootstrap before iteration 1 at 1024 ranks.
-At 128 ranks the entire job — container start, imports, four communicator groups, full
-sweep, churn test — took 33–35 s. Two caveats before reading anything into that: 128 ranks
+At 128 ranks the entire job; container start, imports, four communicator groups, full
+sweep, churn test; took 33–35 s. Two caveats before reading anything into that: 128 ranks
 is one eighth of the reported scale and bootstrap cost is not expected to be linear, and
 these nodes were warm. It does establish that nothing pathological happens at 128 ranks on
 this image.
@@ -118,7 +118,7 @@ communicators than the four this test creates. If §4.1's `PTLTE_NOT_FOUND` is d
 total communicator or endpoint count rather than by any single group's shape, this test
 cannot reach it.
 
-That points at a specific, cheap next experiment: a **communicator-count stress test** —
+That points at a specific, cheap next experiment: a **communicator-count stress test**
 create an increasing number of overlapping process groups per rank and find where
 initialisation breaks. It targets the suspected mechanism directly, needs no Megatron, and
 would either produce the failure or bound it. Recommended over further group-size sweeps,

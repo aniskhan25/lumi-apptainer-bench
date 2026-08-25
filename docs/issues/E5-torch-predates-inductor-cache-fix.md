@@ -6,7 +6,7 @@
 ## Summary
 
 The image ships PyTorch `2.10.0`. Upstream fixed a race in the Inductor FX graph cache in
-`pytorch#172144` (merged January 2026), and that fix is **not** in the 2.10 line — it is in 2.11.
+`pytorch#172144` (merged January 2026), and that fix is **not** in the 2.10 line; it is in 2.11.
 The unfixed code is what causes a failure we reproduced at 128 ranks.
 
 ## The fix, and where it is
@@ -60,7 +60,7 @@ from 512-GPU distributed training, so the scale dependence matches.
 **A single-node reproduction does not work.** 8 ranks on one node, 12 forced compilations each,
 shared Lustre cache, cold: all 8 ranks finished clean with zero warnings. The race needs many
 concurrent writers, which is consistent with upstream seeing it at 512 GPUs. So the cheap check is
-the one-command grep above, not a reproduction — the race itself is already established upstream and
+the one-command grep above, not a reproduction; the race itself is already established upstream and
 does not need re-proving.
 
 Note the symptom differs slightly from upstream's: they saw `pickle data was truncated` from reading
@@ -75,7 +75,7 @@ upgrade, not a version bump:
 | PyTorch | `ROCM_ARCHES` in `.github/scripts/generate_binary_build_matrix.py` |
 | --- | --- |
 | `release/2.10` | `["7.0", "7.1"]` |
-| `release/2.11` | `["7.1", "7.2"]` — 7.0 dropped |
+| `release/2.11` | `["7.1", "7.2"]` 7.0 dropped |
 | `main` | `["7.2", "7.14"]` |
 
 These images are ROCm 7.0 (`u24r70...`), which 2.10 supports and 2.11 does not. So 2.11 would require
@@ -86,7 +86,7 @@ at least ROCm 7.1 and a new image tag.
 **Cherry-pick `pytorch#172144` into the 2.10 build.** It is two lines in
 `GuardedCache.iterate_over_candidates`, the shipped 2.10 has that function in the same shape, and
 these images already build torch from source
-(`2.10.0+rocm7.0.lumi.aif.20260807140531`) — so this is a patch to a build you control rather than a
+(`2.10.0+rocm7.0.lumi.aif.20260807140531`); so this is a patch to a build you control rather than a
 dependency bump:
 
 ```python

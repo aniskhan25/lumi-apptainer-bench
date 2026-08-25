@@ -1,6 +1,6 @@
 # Validating a container against the release gates
 
-Checks one container — no old/new pairing. With a single image under test there is no
+Checks one container; no old/new pairing. With a single image under test there is no
 baseline, so metrics are compared against declared limits in `manifests/gates/`.
 
 ## Run it
@@ -26,7 +26,7 @@ Exit code is the number of failed gate groups. Results and per-gate verdicts lan
 | --- | --- | --- |
 | 1 | 1 | Capability probe: versions, fabric visibility, cache placement, per-rank GPU visibility, allocator support |
 | 2 | 2 | All-to-all at EP=8 (intra-node XGMI control) and EP=16 (crosses Slingshot) |
-| 3 | 4 | All-to-all at EP=32 — the configuration reported to fail during init |
+| 3 | 4 | All-to-all at EP=32 the configuration reported to fail during init |
 | 4 | 8–16 | JIT cache under rank pressure, `torch.compile` stress, sustained stability |
 
 Order matters. The EP=8 intra-node case is the control: a cross-node number means nothing
@@ -79,7 +79,7 @@ Paths are keyed by container so an incompatible image cannot reuse another's art
 | `lustre` | `$SCRATCH/$USER/laif-cache/<container-id>/` | Deliberately reproduce the 64+-rank corruption |
 
 Cache writes are not atomic on Lustre. At 64+ ranks a rank reads a half-written entry,
-raises `JSONDecodeError`, exits, and the remaining ranks hang at the next collective — a
+raises `JSONDecodeError`, exits, and the remaining ranks hang at the next collective, a
 failure whose message never names its cause.
 
 ## Reading the gate output
@@ -116,7 +116,7 @@ limits do not, and should be recalibrated once Phase 2 and Phase 4 have produced
 
 ## Guard gates
 
-Some gates check the test rather than the container — `actually_crossed_nodes`,
+Some gates check the test rather than the container, `actually_crossed_nodes`,
 `stayed_intra_node`, `has_zero_token_peers`. They exist because the failure this suite is
 built to catch is a run that *looks* like it passed: the reported regression survived
 validation precisely because a small test can complete successfully without ever

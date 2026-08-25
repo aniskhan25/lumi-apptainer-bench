@@ -9,7 +9,7 @@ The `20260513_121430` release moved runtime variables from the SIF runscript int
 `ENTRYPOINT`. The GPU-binding logic added for #6 and #13 lives there, and it only takes effect if
 **both** of the following hold:
 
-1. the image is launched with `apptainer run` — `exec` does not execute an `ENTRYPOINT`; and
+1. the image is launched with `apptainer run`, because `exec` does not execute an `ENTRYPOINT`; and
 2. the user has exported `ROCR_USE_SLURM_LOCALID=1` (and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1`).
 
 Neither condition is documented, and the image ships no default for either variable. The result is
@@ -40,8 +40,8 @@ ENTRYPOINT ["/opt/oci-entrypoint.sh"]
 
 The second and third conditionals are the mechanism delivered for:
 
-- #6 — "Copy ROCR_VISIBLE_DEVICES to HIP_VISIBLE_DEVICES at container startup" (closed)
-- #13 — "Environment variable HIP_VISIBLE_DEVICES set incorrectly" (closed)
+- #6; "Copy ROCR_VISIBLE_DEVICES to HIP_VISIBLE_DEVICES at container startup" (closed)
+- #13; "Environment variable HIP_VISIBLE_DEVICES set incorrectly" (closed)
 
 The release notes describe the runscript → entrypoint move and cite `FI_HMEM_DISABLE_P2P` as an
 example, but do not mention that `exec` bypasses an `ENTRYPOINT`, nor that GPU-binding variables
@@ -62,7 +62,7 @@ rank:
 
 Both `ROCR_USE_SLURM_LOCALID=1` and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` were confirmed present
 *inside* the container in the middle row (dumped from `os.environ`), and the exports still did
-not happen — so the cause is the `ENTRYPOINT` not executing, not an unset variable. The third
+not happen, so the cause is the `ENTRYPOINT` not executing, not an unset variable. The third
 row shows the same entrypoint working correctly when reached via `run`, and additionally setting
 `HIP_VISIBLE_DEVICES`, which the launcher-side path does not.
 
@@ -73,12 +73,12 @@ Checked on `main` (not a pinned commit), 27 scripts and 11 chapter READMEs:
 | | count |
 | --- | --- |
 | `singularity run` | 27 |
-| `singularity exec` | 3 — all build helpers (`create_squashfs.sh`, `create_venv.sh`, `install_venv.sh`), no GPU workload |
+| `singularity exec` | 3 all build helpers (`create_squashfs.sh`, `create_venv.sh`, `install_venv.sh`), no GPU workload |
 | `ROCR_USE_SLURM_LOCALID` | **0** |
 | `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` | **0** |
 | `ROCR_VISIBLE_DEVICES` / `HIP_VISIBLE_DEVICES` | **0** |
 
-So every GPU workload in the guide uses `run`, and the guide sets neither opt-in variable anywhere —
+So every GPU workload in the guide uses `run`, and the guide sets neither opt-in variable anywhere
 in scripts or in prose. The `docs.lumi-supercomputer.eu` LAIF page likewise uses `run` throughout.
 No guide issue covers this; the three binding-related issues (#95, #41, #46) are all about *CPU*
 bindings and are closed.
@@ -102,7 +102,7 @@ documentation gap:
 - The mechanism delivered for #6 and #13 requires `run` **and** two variables that appear in no
   documentation, no release note, and no example. As shipped it activates for no documented
   workflow.
-- Users outside the guide — the experience report's author, and our own harness — do use `exec`, and
+- Users outside the guide; the experience report's author, and our own harness; do use `exec`, and
   someone who assumes the container binds devices gets all 8 GCDs per rank.
 - One small trap remains in the guide: `05-multi-gpu-and-node/README.md:297` shows
   `srun --cpu-bind=mask_cpu=$CPU_BIND_MASKS,v singularity exec ...` as an abbreviated illustration of
@@ -110,13 +110,13 @@ documentation gap:
   line switches launch verb without being told it changes container behaviour. That is a one-word fix
   in the guide, better raised there than here.
 
-Of the container-side findings this is the weakest, and it may not warrant its own issue — the ask
+Of the container-side findings this is the weakest, and it may not warrant its own issue, the ask
 below could equally be a note appended to whichever release documents the entrypoint.
 
 ## Note on the torchrun pattern
 
 With `torchrun` under a single `srun` task, `SLURM_LOCALID` is 0 for that task, so the entrypoint
-would not bind devices even under `run` with both variables set — and torchrun workers select their
+would not bind devices even under `run` with both variables set, and torchrun workers select their
 device from `LOCAL_RANK`, where seeing 8 devices is normal and harmless. So the only pattern where
 the feature would do anything is `--ntasks-per-node=8` with a script that does not select a device
 itself.
@@ -127,7 +127,7 @@ Documentation, primarily:
 
 1. State in the release notes and in the software-environment documentation that `apptainer run`
    is required for the entrypoint logic to apply, and that `exec` bypasses it entirely.
-2. Document `ROCR_USE_SLURM_LOCALID` and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES` — what they do, and
+2. Document `ROCR_USE_SLURM_LOCALID` and `MAP_HIP_TO_ROCR_VISIBLE_DEVICES`; what they do, and
    that they must be exported by the user. Right now a feature exists that no documented workflow
    activates.
 3. Consider whether `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1` should be an `ENV` default. `ENV`

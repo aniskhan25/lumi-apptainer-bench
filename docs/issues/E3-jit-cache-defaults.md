@@ -1,10 +1,10 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
-**Title:** Set node-local JIT cache defaults in the image — Triton and C++ extension caches land on `$HOME`
+**Title:** Set node-local JIT cache defaults in the image. Triton and C++ extension caches land on `$HOME`
 
-**STATUS: NOT FILED — treated as handled via `Lumi-supercomputer/LUMI-AI-Guide#112` (2026-08-21).**
+**STATUS: NOT FILED. Treated as handled via `Lumi-supercomputer/LUMI-AI-Guide#112` (2026-08-21).**
 
 For the record, the state of the public tracking as of 2026-08-21: #112 is open with 0 comments,
-last updated 2026-08-06, and the three variables do not yet appear in guide `main` — the cache block
+last updated 2026-08-06, and the three variables do not yet appear in guide `main`; the cache block
 there still covers only `MIOPEN_*` and `TORCH_HOME`. So "handled" means tracked upstream, not yet
 implemented.
 
@@ -12,7 +12,7 @@ One residual difference, noted and not pursued: #112 is guide-side documentation
 who follow the guide's scripts. The ask below was an image-side `ENV` default, which additionally
 reaches derived images and users who never read the guide. That difference is real but modest, and a
 maintainer could reasonably decline it, so it is dropped rather than argued. Retained below as the
-measurement record — the observed `$HOME` cache evidence is the part worth keeping.
+measurement record: the observed `$HOME` cache evidence is the part worth keeping.
 
 ---
 
@@ -52,7 +52,7 @@ TORCH_EXTENSIONS_DIR    /users/<user>/.cache/torch_extensions/py312_cpu  <- $HOM
 
 `MIOPEN_USER_DB_PATH` defaults to `~/.config/miopen/`, also `$HOME`.
 
-And this is not only the computed default — it is where artifacts actually accumulate. On an account
+And this is not only the computed default. It is where artifacts actually accumulate. On an account
 that has run GPU work with `TRITON_CACHE_DIR` unset:
 
 ```console
@@ -93,12 +93,12 @@ failed. Jobs 20684269 and 20684441.
 
 (Those runs were on `20260513_121430` and set `TORCHINDUCTOR_CACHE_DIR` explicitly, since its
 default is already node-local. The underlying race is `pytorch#172144`, fixed upstream in the 2.11
-line but **not** in the 2.10.0 these images ship — see the separate issue on that. Node-local cache
+line but **not** in the 2.10.0 these images ship (see the separate issue on that). Node-local cache
 placement is the mitigation while on 2.10.)
 
 Users are also steered toward the failing configuration. The LUMI-AI-Guide repeats a cache block in
 18 job scripts that sends MIOpen's caches to node-local `/tmp` (correctly, and created per node with
-`srun mkdir -p` — see `Lumi-supercomputer/LUMI-AI-Guide#108`) and `TORCH_HOME` to `/scratch`, while
+`srun mkdir -p`; see `Lumi-supercomputer/LUMI-AI-Guide#108`) and `TORCH_HOME` to `/scratch`, while
 covering none of the three torch/Triton JIT variables. Extending that block by analogy with the
 `TORCH_HOME` line, rather than the MIOpen lines, builds exactly the arm that failed above.
 
@@ -116,7 +116,7 @@ MIOPEN_USER_DB_PATH=${LAIF_CACHE_ROOT}/miopen
 
 Two notes:
 
-1. Use `ENV`, not the `ENTRYPOINT` — `apptainer exec` does not run an `ENTRYPOINT`.
+1. Use `ENV`, not the `ENTRYPOINT`; `apptainer exec` does not run an `ENTRYPOINT`.
 2. The directories must be created per node inside the job step, not at build time. The guide's
    `srun mkdir -p` in #108 is the working precedent.
 
@@ -128,7 +128,7 @@ documentation half is recognised upstream and this issue is not asking for that 
 
 The ask here is different and complementary: an **image default**, so the safe value applies to users
 who never read the guide, and to anyone building a derived image. Documentation alone leaves the
-default wrong for everyone who does not act on it — and the problem is invisible at small scale, so
+default wrong for everyone who does not act on it; and the problem is invisible at small scale, so
 most users will not know they need to.
 
 ## Environment

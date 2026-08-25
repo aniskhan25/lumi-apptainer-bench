@@ -8,7 +8,7 @@
 The suite has no all-to-all test. Every collective test is either an allreduce (the DDP and
 DeepSpeed tests) or a point-to-point transfer (the OSU tests), and the inter-node OSU test runs
 one process per node. As a result the suite cannot reach failures driven by all-to-all traffic
-patterns or by per-node endpoint counts — which is the class a user report describes hitting in
+patterns or by per-node endpoint counts; which is the class a user report describes hitting in
 production while the release tests passed.
 
 ## Current coverage
@@ -58,10 +58,10 @@ A `torch.distributed.all_to_all_single` test, at least 2 nodes × 8 ranks, asser
 
 Two implementation notes that cost real debugging time:
 
-- `dist.new_group()` does not create the RCCL communicator — that happens lazily on first use. A
+- `dist.new_group()` does not create the RCCL communicator; that happens lazily on first use. A
   test that creates groups without exercising them counts Python objects and consumes no fabric
   resources.
-- Bind the device before the first collective — `torch.cuda.set_device(local_rank)`, and optionally
+- Bind the device before the first collective; `torch.cuda.set_device(local_rank)`, and optionally
   `device_id=` on `init_process_group` to make initialisation eager. With one visible GCD per rank
   every rank sees index 0, so PyTorch's fallback guess of `rank N -> device N` is wrong, and we
   measured a hang once a rank held more than one communicator. (We added `set_device` and `device_id`
@@ -70,7 +70,7 @@ Two implementation notes that cost real debugging time:
 
 A working implementation is at
 [`bench/tests/alltoall.py`](https://github.com/aniskhan25/lumi-apptainer-bench/blob/feature/laif-container-validation/bench/tests/alltoall.py)
-with gate thresholds in `manifests/gates/alltoall_*.json` — reuse or adapt freely.
+with gate thresholds in `manifests/gates/alltoall_*.json`; reuse or adapt freely.
 
 ## Reference numbers
 
@@ -89,7 +89,7 @@ Two things worth knowing when setting thresholds:
 
 - Run-to-run variance at 16 MiB is roughly ±10%, and ±36% at 16 KiB, so a threshold set from a
   single sample will be flaky. Use repetitions.
-- Reduce bandwidth on the largest message size rather than averaging across the sweep —
+- Reduce bandwidth on the largest message size rather than averaging across the sweep
   latency-bound small messages dominate the mean and make it useless as a bandwidth gate.
 
 Also useful as a guard: assert the group genuinely spanned nodes. A misconfigured job can satisfy
@@ -98,5 +98,5 @@ survives validation.
 
 ## Related
 
-- `laifs-container-recipes` #20, #28, #30 — all fabric-adjacent, all found by users rather than
+- `laifs-container-recipes` #20, #28, #30; all fabric-adjacent, all found by users rather than
   by the suite.

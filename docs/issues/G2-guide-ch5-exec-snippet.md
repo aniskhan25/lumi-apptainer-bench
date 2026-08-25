@@ -18,7 +18,7 @@ Five lines above, the same command is written with `run`:
 srun --cpu-bind=v,mask_cpu=$CPU_BIND_MASKS singularity run $SIF bash -c "..."
 ```
 
-Everywhere else the guide uses `run` for GPU workloads — 27 occurrences across `main`, with the
+Everywhere else the guide uses `run` for GPU workloads; 27 occurrences across `main`, with the
 only other three `exec` uses being build helpers (`create_venv.sh`, `create_squashfs.sh`,
 `install_venv.sh`) that run no GPU code.
 
@@ -32,7 +32,7 @@ conditionally sets `FI_HMEM_DISABLE_P2P`, `ROCR_VISIBLE_DEVICES` and `HIP_VISIBL
 jobs the entrypoint is a no-op under either verb:
 
 - `FI_HMEM_DISABLE_P2P` requires `SLURM_NNODES=1` **and** `SLURM_GPUS_ON_NODE` empty. Guide scripts
-  request GPUs, so `SLURM_GPUS_ON_NODE` is set — measured `SLURM_NNODES=[1]
+  request GPUs, so `SLURM_GPUS_ON_NODE` is set, measured `SLURM_NNODES=[1]
   SLURM_GPUS_ON_NODE=[1] FI_HMEM_DISABLE_P2P=[<unset>]` under `run` with `--gpus-per-node=1`.
 - The two GPU-binding branches require `ROCR_USE_SLURM_LOCALID=1` and
   `MAP_HIP_TO_ROCR_VISIBLE_DEVICES=1`, which appear nowhere in the guide (0 occurrences on `main`),
@@ -52,8 +52,8 @@ Either make the snippet consistent:
 +srun --cpu-bind=mask_cpu=$CPU_BIND_MASKS,v singularity run ...
 ```
 
-or, if the abbreviation is deliberate, drop the verb entirely — `srun --cpu-bind=...,v <container
-invocation>` — since the point of the line is the `,v` flag.
+or, if the abbreviation is deliberate, drop the verb entirely; `srun --cpu-bind=...,v <container
+invocation>`; since the point of the line is the `,v` flag.
 
 A sentence somewhere in chapter 5 noting that the guide uses `run` because it executes the image's
 entrypoint, while `exec` bypasses it, would also be useful. That distinction is currently not stated

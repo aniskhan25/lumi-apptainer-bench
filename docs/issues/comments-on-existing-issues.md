@@ -3,10 +3,10 @@ Comments to add to existing issues rather than filing duplicates. Targets both
 
 ---
 
-## #30 — "Setting `NCCL_NET_GDR_LEVEL` may cause jobs to hang" — DO NOT POST
+## #30; "Setting `NCCL_NET_GDR_LEVEL` may cause jobs to hang". DO NOT POST
 
 Checked 2026-08-20: 8 comments, active to 2026-07-27. The last comment already reaches our
-conclusion — *"the main point is that setting `NCCL_NET_GDR_LEVEL` should not be required anymore
+conclusion; *"the main point is that setting `NCCL_NET_GDR_LEVEL` should not be required anymore
 anyways."* Our independent confirmation (job 19624583, indefinite hang → 24 s once removed) is
 redundant. Kept here only as the provenance for why our templates default it off.
 
@@ -16,14 +16,14 @@ candidate if we see startup hangs again.
 
 ---
 
-## Comment on #20 — "RCCL communications sometimes hang with PyTorch DDP" — POSTABLE
+## Comment on #20; "RCCL communications sometimes hang with PyTorch DDP", POSTABLE
 
 Reproduced and localised on the current release, under Chapter 5's documented launch configuration.
 **The first collective on a newly created process group intermittently never returns**, and PyTorch's
 watchdog cannot see it.
 
 > `lumi-multitorch-full-u24r70f21m50t210-20260807_115122` (digest `d70ec87f…`), `standard-g`,
-> 4 nodes / 32 ranks. Launch configuration is Chapter 5's srun recipe unmodified — `singularity run`,
+> 4 nodes / 32 ranks. Launch configuration is Chapter 5's srun recipe unmodified, `singularity run`,
 > `--ntasks-per-node=8 --gpus-per-node=8 --cpus-per-task=7 --mem-per-gpu=60G`, the guide's
 > `CPU_BIND_MASKS`, `MASTER_PORT="1${SLURM_JOB_ID:0-4}"`, `WORLD_SIZE=$SLURM_NPROCS`,
 > `RANK`/`LOCAL_RANK` exported inside the container, no `ROCR_VISIBLE_DEVICES`, and no `device_id`.
@@ -51,20 +51,20 @@ watchdog cannot see it.
 > | 3 | 2 | 32 | **0** |
 > | 4 | 8 | 32 | **0** |
 >
-> So `new_group()` returns fine — it is only bookkeeping — and the block is inside the **first
+> So `new_group()` returns fine, being only bookkeeping, and the block is inside the **first
 > `all_reduce` on that group**, which is where RCCL lazily initialises the communicator. The group
 > index varies (5, 4, 2, 8), so it is not a ceiling or a count-dependent limit. Each preceding
 > communicator comes up in ~1.5 s.
 >
 > **There is no straggler rank.** All 32 ranks block at the same call. This is not one slow
-> participant; the whole world stops together.
+> participant. The whole world stops together.
 >
 > **PyTorch's timeout machinery does not catch it.** With `timeout=timedelta(seconds=90)` on the
 > process group and a 240 s wall cap, across four hangs: **zero** `Watchdog caught` messages, zero
 > `DistBackendError`, and **zero** flight-recorder dumps despite `TORCH_FR_BUFFER_SIZE=2000` and
 > `TORCH_NCCL_DUMP_ON_TIMEOUT=1`. That is consistent with the block occurring *before* a `WorkNCCL`
 > is enqueued: there is no work item to time out and nothing for the recorder to record. The
-> practical consequence is that the job hangs indefinitely producing no error and no diagnostics —
+> practical consequence is that the job hangs indefinitely producing no error and no diagnostics
 > which matches this issue's title.
 >
 > **Rates and node lists** (each row a separate allocation):
@@ -77,21 +77,21 @@ watchdog cannot see it.
 >
 > Also seen with our own harness (restricted visibility via `ROCR_VISIBLE_DEVICES` plus `device_id`,
 > so eager init): 2 of 5 allocations at 4 nodes, and **3 of 3 at 16 nodes**. Under eager init the
-> stall moves into `init_process_group`, because that is where the first communicator is then built —
+> stall moves into `init_process_group`, because that is where the first communicator is then built
 > same failure, different call site.
 >
 > The `nid007xxx` allocations fared much worse than the `nid006xxx` one (9/10 vs 1/3). We previously
 > tested and rejected a node-placement hypothesis on a different dataset, so we are not asserting one
-> — but the node lists are here in case they line up with your failures.
+> but the node lists are here in case they line up with your failures.
 >
-> **Limitations.** `exit 124` is our own wall cap; we did not test whether these would eventually
+> **Limitations.** `exit 124` is our own wall cap. We did not test whether these would eventually
 > return. Repeated attempts within one allocation are not independent samples. We have not captured
-> RCCL-internal state during the stall — `NCCL_DEBUG=INFO` with `NCCL_DEBUG_SUBSYS=INIT,NET` on this
+> RCCL-internal state during the stall; `NCCL_DEBUG=INFO` with `NCCL_DEBUG_SUBSYS=INIT,NET` on this
 > reproducer would be the next step, and we are happy to run it.
 
 ---
 
-## #28 — "Multi-node `torch.distributed.init` fails." — DO NOT POST
+## #28; "Multi-node `torch.distributed.init` fails.". DO NOT POST
 
 Checked 2026-08-20: 7 comments, and the last one (2026-04-23, from the reporter) is *"Training job
 on 16 nodes seems to run nice and stable!"* The thread has moved on. Our contribution was "we could
@@ -100,12 +100,12 @@ not reproduce it either", which agrees with a resolved issue and adds nothing. O
 
 ---
 
-## Comment on LUMI-AI-Guide #112 — "Document more environment variables"
+## Comment on LUMI-AI-Guide #112; "Document more environment variables"
 
 **STATUS: noted by the guide maintainer (2026-08-20).** Kept for reference; no further action
 needed unless they ask for the underlying data.
 
-> The block merged in #108 is a good template for these three — same shape, same place. Two things
+> The block merged in #108 is a good template for these three; same shape, same place. Two things
 > we measured that might be worth folding in.
 >
 > **1. The three are not equivalent.** Measured inside
@@ -113,9 +113,9 @@ needed unless they ask for the underlying data.
 >
 > | Variable | Default | Shared across the job's nodes? |
 > | --- | --- | --- |
-> | `TRITON_CACHE_DIR` | `/users/$USER/.triton/cache` | **yes** — `$HOME`, Lustre, 20 GB quota |
-> | `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | **yes** — same |
-> | `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no — already node-local |
+> | `TRITON_CACHE_DIR` | `/users/$USER/.triton/cache` | **yes**; `$HOME`, Lustre, 20 GB quota |
+> | `TORCH_EXTENSIONS_DIR` | `/users/$USER/.cache/torch_extensions/py312_cpu` | **yes**, same |
+> | `TORCHINDUCTOR_CACHE_DIR` | `/tmp/torchinductor_$USER` | no; already node-local |
 >
 > ```bash
 > singularity exec "$SIF" python3 -c "
@@ -129,7 +129,7 @@ needed unless they ask for the underlying data.
 > `TORCHINDUCTOR_CACHE_DIR` is worth setting anyway, to pin the guarantee rather than inherit it.
 >
 > **2. Node-local, not `/scratch`.** The block above `TORCH_HOME` is the right model, not `TORCH_HOME`
-> itself. `TORCH_HOME` on `/scratch` is correct — large, read-mostly, genuinely shared. JIT caches are
+> itself. `TORCH_HOME` on `/scratch` is correct: large, read-mostly, genuinely shared. JIT caches are
 > the opposite: many small files, write-heavy, written concurrently by every rank. Extending the
 > `TORCH_HOME` line by analogy would make things worse, so the distinction may be worth stating
 > explicitly.
@@ -156,7 +156,7 @@ needed unless they ask for the underlying data.
 
 ---
 
-## Comment on laifs-container-recipes #39 — "vLLM and compressed-tensors dependency conflict"
+## Comment on laifs-container-recipes #39; "vLLM and compressed-tensors dependency conflict"
 
 **STATUS: shared with the container maintainer (2026-08-20).** Kept for reference.
 
@@ -174,7 +174,7 @@ needed unless they ask for the underlying data.
 > Same in `plus`. So the reporter's derived build inherited it rather than caused it.
 >
 > **2. It appears to be a metadata problem rather than a functional one.** Every
-> compressed-tensors module in vLLM imports cleanly against 0.17.1 — all 32 submodules, including
+> compressed-tensors module in vLLM imports cleanly against 0.17.1; all 32 submodules, including
 > the whole `compressed_tensors_moe` family and every scheme:
 >
 > ```bash
@@ -188,7 +188,7 @@ needed unless they ask for the underlying data.
 > # -> 32 modules imported OK
 > ```
 >
-> That is import coverage only — it does not exercise a quantized model at runtime, and Triton is
+> That is import coverage only; it does not exercise a quantized model at runtime, and Triton is
 > disabled on a login node, so any Triton-only path is untested here.
 >
 > So the actionable part is probably relaxing or correcting vLLM's pin rather than downgrading
@@ -196,7 +196,7 @@ needed unless they ask for the underlying data.
 
 ---
 
-## Comment on LUMI-AI-Guide #111 — "Not all VRAM can be used by PyTorch"
+## Comment on LUMI-AI-Guide #111; "Not all VRAM can be used by PyTorch"
 
 > **STATUS: POSTED 2026-08-19.** A condensed version went up as the fourth comment on the issue,
 > carrying the load-bearing parts: ~1 GiB for the initial RCCL/communicator overhead plus ~0.65 GiB
@@ -235,11 +235,11 @@ needed unless they ask for the underlying data.
 >
 > | Job shape | Communicators/rank | Hidden cost |
 > | --- | --- | --- |
-> | plain DDP | 1 | ~1 GiB — negligible |
+> | plain DDP | 1 | ~1 GiB, negligible |
 > | Megatron-style TP/PP/DP(/EP) | 8-10 | `950 + 9 x 653` ≈ **6.8 GiB**, ~11% of a 63.98 GiB GCD |
 >
 > This matches a user report we were validating: they could not exceed ~57 GiB against 63.98 GiB
-> nameplate — a ~7 GiB gap, consistent across three independent configurations — and eventually
+> nameplate; a ~7 GiB gap, consistent across three independent configurations, and eventually
 > settled on ~40 GB as their planning figure after some weeks. So it is rare in headcount but
 > expensive when it lands, and it lands on exactly the large-scale jobs that are hardest to debug.
 >

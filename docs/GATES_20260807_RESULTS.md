@@ -11,9 +11,9 @@ First end-to-end run of the validation gates against the container they are mean
 | Gate group | Nodes | Result | Failing gate |
 | --- | --- | --- | --- |
 | `phase1_probe` | 1 | **FAIL** | `fi_info_runs` |
-| `phase2_alltoall_ep8` | 2 | PASS | — |
-| `phase2_alltoall_ep16` | 2 | PASS | — |
-| `phase3_alltoall_ep32` | 4 | PASS | — |
+| `phase2_alltoall_ep8` | 2 | PASS | |
+| `phase2_alltoall_ep16` | 2 | PASS | |
+| `phase3_alltoall_ep32` | 4 | PASS | |
 
 Per-rank all-to-all bandwidth at 16 MiB, against the thresholds frozen from the
 `20260513_121430` baselines (both measured with `--cpu-bind=cores`, masks off):
@@ -48,7 +48,7 @@ cxi_provider_visible   skipped   None
 
 The provider-enumeration gate **cannot run** when `fi_info` is broken, because the probe
 gets its provider list from `fi_info -p cxi`. So the shim does not merely cost a human a
-diagnostic — it silently removes a fabric-verification gate from an automated suite, and the
+diagnostic; it silently removes a fabric-verification gate from an automated suite, and the
 suite reports one failure rather than one failure plus one blind spot. This is the strongest
 argument for E1 and it came out of running the suite rather than reading the image.
 
@@ -75,14 +75,14 @@ reporting:
 The client socket has timed out after 600000ms while trying to connect to (nid005216, 29500)
 ```
 
-A c10d TCPStore timeout, not a fabric problem — it consumed a 2-node allocation for 10
+A c10d TCPStore timeout, not a fabric problem; it consumed a 2-node allocation for 10
 minutes and produced nothing (job 21428186). `MASTER_PORT` was hardcoded to 29500, which is
 unsafe for a suite that runs several jobs back to back. Now derived from `SLURM_JOB_ID`, the
 same scheme the LUMI AI Guide uses for this reason. Fixed in `ee10c41`; EP=8 passed on retry.
 
 ## Known gap in the gate design
 
-`triton_cache_off_lustre` and `inductor_cache_off_lustre` both pass — but they pass because
+`triton_cache_off_lustre` and `inductor_cache_off_lustre` both pass; but they pass because
 `templates/lumi_common.sh` sets `LAIF_CACHE_MODE=tmp`, not because the container does. They
 validate our own launcher, so the suite does **not** detect the `$HOME`-default exposure
 described in `E3-jit-cache-defaults.md`. Testing that would need a probe arm that deliberately

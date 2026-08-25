@@ -2,28 +2,28 @@
 
 Two modes:
 
-**Comparison** — benchmark a new LUMI container against a known stable one under the same
+**Comparison**; benchmark a new LUMI container against a known stable one under the same
 launch setup. Outputs JSON plus `delta.json` percentage deltas. This is what `main` does.
 
-**Validation** — check a single container against absolute release gates. There is no
+**Validation**; check a single container against absolute release gates. There is no
 baseline run, so each metric is checked against a declared limit in `manifests/gates/`
 rather than against a previous result. Added on this branch to validate the `-latest`
 container against the issues raised in the `project_465003047` experience report.
 
 ### Findings
 
-**Start here: [`docs/FINDINGS.md`](docs/FINDINGS.md)** — consolidated, evidence-backed
+**Start here: [`docs/FINDINGS.md`](docs/FINDINGS.md)**, consolidated, evidence-backed
 response to the report, with job IDs and the container digest.
 
 Container under test: `lumi-multitorch-full-u24r70f21m50t210-20260807_115122`
 (`sha256 d70ec87f…`, currently `lumi-multitorch-latest.sif`), up to 16 nodes / 128 ranks, pure
-PyTorch (no Megatron-Core). Current release only — regressions between builds are out of scope.
+PyTorch (no Megatron-Core). Current release only; regressions between builds are out of scope.
 Multi-node GPU measurements were taken on the earlier `20260513_121430` and are labelled as such
 in the reports.
 
 | # | Report finding | Status |
 | --- | --- | --- |
-| 4.1 | Inter-node all-to-all regression (`PTLTE_NOT_FOUND`) | Not reproduced — hypotheses exhausted |
+| 4.1 | Inter-node all-to-all regression (`PTLTE_NOT_FOUND`) | Not reproduced hypotheses exhausted |
 | 4.2 | Usable HBM below nameplate | **Confirmed and quantified** |
 | 4.3 | `HSA_STATUS_ERROR_OUT_OF_RESOURCES` from `torch.compile` | Not tested |
 | 4.4 | 32-rank expert all-to-all fails | Not reproduced in its own topology |
@@ -48,7 +48,7 @@ Headline results:
 - **Six issues found that the report does not raise**, including Intel MPI shims from a
   transitive `oneccl` → `impi-rt` dependency shadowing a working `fi_info`, and the container's
   GPU-binding fix reaching no documented workflow (it needs `apptainer run` *and* two
-  undocumented variables). A seventh — `MIOPEN_USER_DB` being a variable MIOpen does not read —
+  undocumented variables). A seventh; `MIOPEN_USER_DB` being a variable MIOpen does not read
   was fixed upstream in `LUMI-AI-Guide#108` before we raised it.
 
 ### Reports

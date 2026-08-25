@@ -1,11 +1,11 @@
-# Phase 2 results — two nodes, all-to-all
+# Phase 2 results; two nodes, all-to-all
 
 **Image:** `lumi-multitorch-latest.sif` → `...full-u24r70f21m50t210-20260513_121430.sif`
 **Digest:** `f0de72f48d1213e1a1a96523382896a4e0b0807c55155fdecd91de29529358d4`
 **Partition:** `standard-g`, 2 nodes, 8 ranks/node, world size 16
 **Date:** 2026-08-04
 **Jobs:** 20674950 (EP=8, `nid[006146,006992]`), 20674957 (EP=16, `nid[005136,005384]`)
-**Binding:** `--cpu-bind=cores` — **not** the LUMI NUMA masks, see the caveat below
+**Binding:** `--cpu-bind=cores`; **not** the LUMI NUMA masks, see the caveat below
 
 ---
 
@@ -27,7 +27,7 @@ peers, and survives repeated communicator create/destroy.
 
 **This does not clear the container.** The report's failure is at **EP=32 across four
 nodes** (§4.4), which is Phase 3. What Phase 2 establishes is that cross-node all-to-all
-per se is not broken on this image, so a Phase 3 failure — if it occurs — would be specific
+per se is not broken on this image, so a Phase 3 failure; if it occurs; would be specific
 to the 32-rank group size or the four-node topology rather than to crossing a node boundary
 at all. Report §4.1's `PTLTE_NOT_FOUND` arose in a real Megatron MoE workload, which this
 pure-PyTorch collective does not reconstruct; a clean result here does not rule it out.
@@ -54,7 +54,7 @@ max-across-ranks reduction, so it is a per-rank figure for the slowest participa
 The collective-level gap (2.2×–5.6×) is much larger than the reported +64% end-to-end, and
 that is the expected relationship: the all-to-all is one component of a training step, so a
 ~2.8× collective speedup dilutes to a smaller whole-step gain. **The measurement supports
-and explains the report's design rule** — keeping the expert all-to-all inside one node on
+and explains the report's design rule**; keeping the expert all-to-all inside one node on
 XGMI rather than crossing Slingshot is worth a large constant factor, and LUMI users
 planning MoE work should treat EP≤8 as the default.
 
@@ -64,7 +64,7 @@ worse than the aggregate column suggests.
 
 ---
 
-## ~~New finding: EP=16 bandwidth is non-monotonic — it collapses at 16 MiB~~ (RETRACTED)
+## ~~New finding: EP=16 bandwidth is non-monotonic; it collapses at 16 MiB~~ (RETRACTED)
 
 > **Retracted by Phase 3.** See `docs/PHASE3_RESULTS.md`. Repeated runs showed ±20%
 > run-to-run variance at 16 MiB, and EP=16 on four nodes *rose* over the same range
@@ -73,7 +73,7 @@ worse than the aggregate column suggests.
 > attribution do not hold. The corrected reading is that cross-node bandwidth *saturates*
 > beyond 4 MiB. The section is kept as written for the record.
 
-## New finding: EP=16 bandwidth is non-monotonic — it collapses at 16 MiB
+## New finding: EP=16 bandwidth is non-monotonic; it collapses at 16 MiB
 
 The EP=16 curve rises to 10.544 GB/s at 4 MiB and then **falls to 8.930 GB/s at 16 MiB**,
 while latency rises 372.9 → 1761.4 µs. That is a 4.7× latency increase for a 4× data
@@ -122,7 +122,7 @@ srun: error: Unable to satisfy cpu bind request
 ```
 
 The canonical mask list addresses 7 cores in each of 8 GPU groups (56 cores). The step was
-granted 28 — `0x1E` is 4 cores, across 7 groups. Tested and ruled out:
+granted 28; `0x1E` is 4 cores, across 7 groups. Tested and ruled out:
 
 | Attempt | Result |
 | --- | --- |
@@ -150,10 +150,10 @@ the masks nor the allocation, and costs three failed submissions to interpret.
 | `payload_correct` | pass | pass |
 | `zero_mismatches` | pass (0) | pass (0) |
 | `uneven_splits_correct` | pass | pass |
-| `has_zero_token_peers` | pass (3) | — |
+| `has_zero_token_peers` | pass (3) | |
 | `communicator_churn_clean` | pass | pass |
-| `stayed_intra_node` | pass | — |
-| `actually_crossed_nodes` | — | pass |
+| `stayed_intra_node` | pass | |
+| `actually_crossed_nodes` | | pass |
 | `bandwidth_large_message_gbps` | pass (49.6 ≥ 15.0) | pass (8.93 ≥ 1.5) |
 
 Both provisional bandwidth floors were cleared with wide margins, so they remain
@@ -164,6 +164,6 @@ under proper NUMA binding.
 
 ## Next
 
-Phase 3, four nodes, EP=32 — the configuration report §4.4 says never initialised. That is
+Phase 3, four nodes, EP=32; the configuration report §4.4 says never initialised. That is
 now the sharpest open question, because Phase 2 has shown that crossing a node boundary is
 not itself the problem on this image.

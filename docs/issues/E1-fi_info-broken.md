@@ -1,11 +1,11 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
-**Title:** `fi_info` and `fi_pingpong` are broken in the `full` and `plus` images — Intel MPI shims shadow the working binaries
+**Title:** `fi_info` and `fi_pingpong` are broken in the `full` and `plus` images. Intel MPI shims shadow the working binaries
 
 ---
 
 ## Summary
 
-`fi_info` looks uninstalled in `full` and `plus`. It isn't — `/usr/bin/fi_info` works. A wrapper
+`fi_info` looks uninstalled in `full` and `plus`. It isn't; `/usr/bin/fi_info` works. A wrapper
 from the pip package `impi-rt` sits in `/opt/venv/bin`, which is first on `PATH`, and shadows it.
 
 ## Reproduce
@@ -33,7 +33,7 @@ The wrapper comes from `impi-rt` 2021.18.1, pulled in transitively by `oneccl` 2
 
 ## Scope
 
-`full` and `plus` only — the two variants with the venv. `libfabric`, `mpich` and `torch` all
+`full` and `plus` only, the two variants with the venv. `libfabric`, `mpich` and `torch` all
 return `libfabric: 2.1.0`. `fi_pingpong` is shadowed the same way.
 
 ## What the shadowing costs
@@ -46,16 +46,16 @@ $ srun -N1 -n1 --gpus-per-node=1 singularity exec "$SIF" /usr/bin/fi_info -p cxi
 provider: cxi
     fabric: cxi
     domain: cxi0
-... (cxi0, cxi1, cxi2, cxi3 — all 4 found)
+... (cxi0, cxi1, cxi2, cxi3: all 4 found)
 
 $ srun ... singularity exec "$SIF" fi_info -p cxi          # what a user actually gets
 /opt/venv/bin/fi_info: line 34: /opt/mpi/libfabric/bin/fi_info: No such file or directory
 ```
 
 **Severity, stated honestly:** this is not critical. No workload fails, and there is no performance
-effect — `fi_info` is a diagnostic, so it only matters once something else has gone wrong. The
+effect; `fi_info` is a diagnostic, so it only matters once something else has gone wrong. The
 argument for fixing it is the ratio: the fix is one line, the risk is nil, and the failure falls on
-the first command anyone runs when investigating the fabric — the same subject as open issues #20,
+the first command anyone runs when investigating the fabric, the same subject as open issues #20,
 #28 and #30. A user hitting it reasonably concludes the libfabric tools were not shipped, and then
 has no way to enumerate providers from inside the container.
 
@@ -88,7 +88,7 @@ a process gets.
 
 In normal use this is harmless: `import torch` loads the system MPICH first, and `mpi4py` then
 binds to MPICH 5.0.1 correctly (verified on a GPU node). No shipped package triggers the other
-order — `megatron`, `vllm`, `transformer_engine` and `apex` never reference mpi4py, and `deepspeed`
+order; `megatron`, `vllm`, `transformer_engine` and `apex` never reference mpi4py, and `deepspeed`
 and `lightning` import torch before they reach it.
 
 It only bites if `mpi4py` is imported before `torch`, in which case Intel's library wins and torch
