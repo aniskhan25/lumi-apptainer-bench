@@ -1,5 +1,7 @@
-Everything below the line is the issue text. The full record, with every run, timing and control, is
-in [`E6-newgroup-first-collective-hang.md`](E6-newgroup-first-collective-hang.md).
+**FILED 2026-08-25 as `laifs-container-recipes` [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44).** No maintainer response yet.
+
+Text as filed is below the line. The full record, with every run, timing and control, is in
+[`E6-newgroup-first-collective-hang.md`](E6-newgroup-first-collective-hang.md).
 
 ---
 

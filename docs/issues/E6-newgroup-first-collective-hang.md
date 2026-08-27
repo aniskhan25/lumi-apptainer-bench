@@ -1,6 +1,9 @@
 **Repo:** `lumi-ai-factory/laifs-container-recipes`
 **Title:** First collective on a new process group intermittently hangs forever, with no timeout and no diagnostics
 
+**FILED 2026-08-25 as [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44)**, using the condensed text in
+[`E6-issue-text.md`](E6-issue-text.md). This file is the supporting record.
+
 ---
 
 ## Summary

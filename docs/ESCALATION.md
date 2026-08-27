@@ -40,7 +40,9 @@ itself rather than quietly edited away.
 ## 3. TODO
 
 **Escalation**
-- [ ] File **E6**; the one finding that got stronger under scrutiny, and the only one with a
+- [x] File **E6** (done: [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44), 2026-08-25). Watch for a maintainer reply; the offered
+      follow-up is `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on the same reproducer
+- [ ] ~~File E6~~; the one finding that got stronger under scrutiny, and the only one with a
       reproducer a maintainer can run unmodified
 - [ ] Post the **#20** comment; the only remaining one worth sending. Keeps both halves together:
       #20 is about hangs, so the uncaused 2-of-5 observation and the `device_id` mechanism both
