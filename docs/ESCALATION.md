@@ -41,7 +41,10 @@ itself rather than quietly edited away.
 
 **Escalation**
 - [x] File **E6** (done: [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44), 2026-08-25). Watch for a maintainer reply; the offered
-      follow-up is `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` on the same reproducer
+      follow-up has been run (job 21562035) and drafted as
+      [`E6-followup-comment.md`](issues/E6-followup-comment.md), ready to post: the stall is inside
+      `ncclCommInitRankConfig_impl` after rings, trees and proxy connections complete, identical on
+      all 32 ranks, which also distinguishes it from #28
 - [ ] Post the **#20** comment; the only remaining one worth sending. Keeps both halves together:
       #20 is about hangs, so the uncaused 2-of-5 observation and the `device_id` mechanism both
       belong there rather than being split off
