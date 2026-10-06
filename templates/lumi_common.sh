@@ -158,6 +158,10 @@ lumi_log_env() {
       echo "nccl_socket_ifname=${NCCL_SOCKET_IFNAME}"
       echo "nccl_net_gdr_level=${NCCL_NET_GDR_LEVEL}"
     fi
+    # Releases from 20260929 default the libfabric MR cache monitor to kdreg2 (earlier
+    # ones used memhooks), so record what was set or the comparison cannot tell them apart.
+    echo "fi_mr_cache_monitor=${FI_MR_CACHE_MONITOR:-<unset: container default>}"
+    env | grep -E '^(FI|NCCL|RCCL)_' | sort || true
     echo "bench_cmd=${BENCH_CMD[*]}"
     srun --version || true
   } | tee "${LOG_DIR}/run_env.txt"

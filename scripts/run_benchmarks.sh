@@ -27,8 +27,8 @@ require_env() {
 
 require_env PROJECT_NAME
 
-OLD_CONTAINER="${OLD_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-u24r70f21m50t210-20260415_130625/lumi-multitorch-full-u24r70f21m50t210-20260415_130625.sif}"
-NEW_CONTAINER="${NEW_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-latest.sif}"
+OLD_CONTAINER="${OLD_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-u24r70f21m50t210-20260807_115122/lumi-multitorch-full-u24r70f21m50t210-20260807_115122.sif}"
+NEW_CONTAINER="${NEW_CONTAINER:-/appl/local/laifs/containers/lumi-multitorch-u24r72f21m50t211-20260929_104918/lumi-multitorch-full-u24r72f21m50t211-20260929_104918.sif}"
 
 export PARTITION="${PARTITION:-standard-g}"
 export ACCOUNT="${ACCOUNT:-${PROJECT_NAME}}"
