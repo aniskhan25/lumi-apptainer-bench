@@ -13,6 +13,11 @@ Optional:
   export PARTITION=standard-g
   export ACCOUNT=$PROJECT_NAME
   export RESULTS_ROOT=/scratch/$PROJECT_NAME/$USER/bench_results
+  export SKIP_EXISTING=1   # skip steps whose output already exists (resume a stopped run)
+
+Multi-node templates use the LUMI AI Guide CPU bind masks, which need a full-node
+allocation. Run under sbatch, not from a login node:
+  sbatch --account=$PROJECT_NAME scripts/run_benchmarks.sbatch
 EOF
 }
 
@@ -39,6 +44,10 @@ run_template() {
   local template="$1"
   local output_name="$2"
   shift 2
+  if [[ "${SKIP_EXISTING:-0}" == "1" && -f "${RESULTS_ROOT}/${output_name}" ]]; then
+    echo "Skipping ${output_name}: already exists"
+    return
+  fi
   "${template}" "${NEW_CONTAINER}" -- "$@" --out "${RESULTS_ROOT}/${output_name}"
 }
 
@@ -46,6 +55,10 @@ run_compare() {
   local template="$1"
   local mode="$2"
   local results_dir="$3"
+  if [[ "${SKIP_EXISTING:-0}" == "1" && -f "${RESULTS_ROOT}/${results_dir}/delta.json" ]]; then
+    echo "Skipping ${results_dir}: already exists"
+    return
+  fi
   export BENCH_TEMPLATE="${template}"
   ./bench/compare.sh \
     --old "${OLD_CONTAINER}" \
