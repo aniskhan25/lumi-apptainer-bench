@@ -13,7 +13,7 @@ itself rather than quietly edited away.
 
 | # | What | Target | Status |
 | --- | --- | --- | --- |
-| **E6** | [Creating a second process group hangs](issues/E6-issue-text.md) (text as filed; full record in [`E6-newgroup...`](issues/E6-newgroup-first-collective-hang.md)) | `laifs-container-recipes` | **FILED as [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44)** 2026-08-25. 13/17 across 4 allocations; localised to lazy RCCL communicator init; single-group control passes 9/9; no watchdog, no dump, no error |
+| **E6** | [Creating a second process group hangs](issues/E6-issue-text.md) (text as filed; full record in [`E6-newgroup...`](issues/E6-newgroup-first-collective-hang.md)) | `laifs-container-recipes` | **FILED as [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44)** 2026-08-25. 13/17 across 4 allocations; localised to lazy RCCL communicator init; single-group control passes 9/9; no watchdog, no dump, no error. **RESOLVED 2026-10-07** by `FI_MR_CACHE_MONITOR=userfaultfd`; default `kdreg2` from the 20260929 image |
 | **E1** | [`fi_info`/`fi_pingpong` shadowed by Intel MPI shims](issues/E1-fi_info-broken.md) | `laifs-container-recipes` | **Not filed candidate.** Low severity, one-line fix. Strengthened 2026-08-21: it also *skips* our `cxi_provider_visible` gate, so it blinds automated fabric checks |
 | **E2** | [#6/#13 GPU-binding fix is doubly opt-in](issues/E2-entrypoint-not-run-under-exec.md) | `laifs-container-recipes` | **Not filed optional.** Verified against guide `main`: no documented workflow is affected. Dead feature + docs gap |
 | **E3** | [JIT cache defaults](issues/E3-jit-cache-defaults.md) | | **Handled** via guide #112. Measurement record retained |
@@ -40,11 +40,9 @@ itself rather than quietly edited away.
 ## 3. TODO
 
 **Escalation**
-- [x] File **E6** (done: [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44), 2026-08-25). Watch for a maintainer reply; the offered
-      follow-up has been run (job 21562035) and drafted as
-      [`E6-followup-comment.md`](issues/E6-followup-comment.md), ready to post: the stall is inside
-      `ncclCommInitRankConfig_impl` after rings, trees and proxy connections complete, identical on
-      all 32 ranks, which also distinguishes it from #28
+- [x] File **E6** (done: [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44), 2026-08-25). Resolved 2026-10-07 by
+      `FI_MR_CACHE_MONITOR=userfaultfd`; the 20260929 image defaults to `kdreg2`. The drafted
+      [`E6-followup-comment.md`](issues/E6-followup-comment.md) is superseded and will not be posted
 - [ ] Post the **#20** comment; the only remaining one worth sending. Keeps both halves together:
       #20 is about hangs, so the uncaused 2-of-5 observation and the `device_id` mechanism both
       belong there rather than being split off

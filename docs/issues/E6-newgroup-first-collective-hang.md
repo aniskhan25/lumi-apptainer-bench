@@ -4,6 +4,12 @@
 **FILED 2026-08-25 as [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44)**, using the condensed text in
 [`E6-issue-text.md`](E6-issue-text.md). This file is the supporting record.
 
+**RESOLVED 2026-10-07.** Setting `FI_MR_CACHE_MONITOR=userfaultfd` removes the hang. This matches HPE's
+guidance that libfabric's `memhooks` memory-registration monitor can hang NCCL/RCCL collectives at
+scale. From `lumi-multitorch-u24r72f21m50t211-20260929_104918` the image
+defaults to `kdreg2`, HPE's recommended monitor; earlier images have no kdreg2 support and need
+`userfaultfd` set explicitly.
+
 ---
 
 ## Summary

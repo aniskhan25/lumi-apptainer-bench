@@ -1,5 +1,7 @@
 Follow-up comment for [#44](https://github.com/lumi-ai-factory/laifs-container-recipes/issues/44),
-supplying the RCCL-internal view offered in the issue. Not posted.
+supplying the RCCL-internal view offered in the issue. Not posted, and now superseded: the hang is
+resolved by `FI_MR_CACHE_MONITOR=userfaultfd` (see the resolution note in
+[`E6-newgroup-first-collective-hang.md`](E6-newgroup-first-collective-hang.md)).
 
 ---
 
