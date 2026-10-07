@@ -33,7 +33,9 @@ def first_host_from_nodelist(nodelist):
 
 
 def master_addr_from_slurm():
-    nodelist = os.environ.get("SLURM_NODELIST", "")
+    # Prefer the step's nodes: inside a multi-node sbatch job SLURM_NODELIST lists the
+    # whole job, so a single-node step would rendezvous on a node it is not running on.
+    nodelist = os.environ.get("SLURM_STEP_NODELIST") or os.environ.get("SLURM_NODELIST", "")
     if not nodelist:
         return None
     if shutil.which("scontrol"):
